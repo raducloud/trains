@@ -24,7 +24,7 @@ STATION_COLORS = {
 SWITCH_COLOR = (173, 255, 47)  # Light green for switches
 
 # Define positions for stations and switches
-stations = {
+station_positions = {
     "red": (600, 100),
     "green": (100, 500),
     "blue": (400, 500),
@@ -73,6 +73,7 @@ class Station:
                  (self.x, self.y - self.height//2 - 20)]
         pygame.draw.polygon(screen, self.color, points)
 
+stations = {key: Station(x, y, STATION_COLORS[key]) for key, (x, y) in station_positions.items()}
 
 # Helper function to get position
 def get_position(key):
@@ -81,7 +82,7 @@ def get_position(key):
     elif key == "start":  # Hard-coded start position for trains
         return (0, 0)
     else:  # Otherwise, it's a station key
-        return stations[key]
+        return station_positions[key]
 
 # Draw function to handle tracks, stations, and switches
 def draw_elements():
@@ -92,8 +93,8 @@ def draw_elements():
         pygame.draw.line(window, TRACK_COLOR, start_pos, end_pos, 5)
 
     # Draw stations as colored circles
-    for color, position in stations.items():
-        pygame.draw.circle(window, STATION_COLORS[color], position, 20)
+    for station in stations.values():
+        station.draw(window)
 
     # Draw switches as light green circles
     for pos in switches:
