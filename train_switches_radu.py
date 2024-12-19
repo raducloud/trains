@@ -1,9 +1,6 @@
 import pygame
-import random
-import math
 from enum import Enum
 from typing import List, Tuple, Dict
-import time
 
 MAP_WIDTH = 10
 MAP_HEIGHT = 10
@@ -53,7 +50,7 @@ class ToggleButton(Button):
 
 class Game_element:
 
-    def __init__(self, x, y, size, color=pygame.Color('white')):
+    def __init__(self, x, y, color=pygame.Color('white'), size=ELEMENT_SIZE):
         self.x = x
         self.y = y
         self.size = size
@@ -74,6 +71,17 @@ class Station(Game_element):
                  (self.x + self.size//2, self.y - self.size//2),
                  (self.x, self.y - self.size)]
         pygame.draw.polygon(screen, self.color, points)
+
+class Base_station(Game_element): # a black square - like a tunnel hole from which all trains appear
+    
+    def __init__(self,x,y):
+        Game_element.__init__(self, x, y, color=pygame.Color('black'));
+
+    def draw(self, screen):
+        pygame.draw.rect(screen, self.color, 
+                        (self.x - self.size//2, 
+                         self.y - self.size//2,
+                         self.size, self.size))
 
 class Train(Game_element):
     
@@ -126,38 +134,52 @@ class Game:
         FONT = pygame.font.Font(None, 20)
         pygame.display.set_caption("Train Routing Puzzle")
         self.map_elements = [[None for x in range(MAP_WIDTH)] for y in range(MAP_HEIGHT)]
+        self.base_station_position = (0,0)
         self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
 
         toolbar_y = MAP_HEIGHT * ELEMENT_SIZE + 10
-        self.station_button = ToggleButton(BUTTON_MARGIN, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Station")
-        self.track_button = ToggleButton(BUTTON_MARGIN * 2 + BUTTON_WIDTH, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Track")
+        self.base_station_button = ToggleButton(BUTTON_MARGIN, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Base")
+        self.station_button = ToggleButton(BUTTON_MARGIN * 2 + BUTTON_WIDTH, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Station")
+        self.track_button = ToggleButton(BUTTON_MARGIN * 3 + BUTTON_WIDTH * 2, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Track")
         self.start_button = Button(WINDOW_WIDTH - BUTTON_MARGIN * 2 - BUTTON_WIDTH * 2, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Start")
         self.clear_button = Button(WINDOW_WIDTH - BUTTON_MARGIN - BUTTON_WIDTH, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Clear")
-        self.buttons = [self.station_button, self.track_button,self.start_button, self.clear_button]
+        self.buttons = [self.base_station_button, self.station_button, self.track_button,self.start_button, self.clear_button]
 
+    def pop_buttons_except(self, except_button:Button):
+        for button in self.buttons:
+            if button!=except_button:
+                button.is_selected = False
+    
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
     
+            #handle click on toolbar:
             for button in self.buttons:
                 if button.handle_event(event):
-                    if button == self.station_button and button.is_selected:
-                        self.track_button.is_selected = False
-                        self.current_tool = 'station'
-                    elif button == self.track_button and button.is_selected:
-                        self.station_button.is_selected = False
-                        self.current_tool = 'track'
-                    elif button == self.start_button:
+                    self.pop_buttons_except(button) # pop the other buttons (in case they are toggle kind)
+                    if button == self.start_button:
                         print('self.start_game()')
                     elif button == self.clear_button:
                         print('self.clear_map()')
             
+            # handle click on map area:
             if event.type == pygame.MOUSEBUTTONDOWN:
-                mouse_pos = pygame.mouse.get_pos()
-                x,y=mouse_pos
+                x,y = pygame.mouse.get_pos()
                 if x <= MAP_WIDTH*ELEMENT_SIZE and y <= MAP_HEIGHT*ELEMENT_SIZE:
-                    self.map_elements[(x-1)//ELEMENT_SIZE][(y-1)//ELEMENT_SIZE]=Track_segment(x, y, 'L', 'U', ELEMENT_SIZE)
+                    map_tile_x = (x-1)//ELEMENT_SIZE
+                    map_tile_y = (y-1)//ELEMENT_SIZE
+                    # click coordinates snapped to map grid (to center of tiles more exactly):
+                    map_x = (x-1)//ELEMENT_SIZE*ELEMENT_SIZE+ELEMENT_SIZE//2
+                    map_y = (y-1)//ELEMENT_SIZE*ELEMENT_SIZE+ELEMENT_SIZE//2
+                    if self.station_button.is_selected:
+                        self.map_elements[map_tile_x][map_tile_y]=Station(map_x,map_y)
+                    if self.base_station_button.is_selected:
+                         # if the base station already existed, clear it from its old place - there can be only one:
+                        self.map_elements[self.base_station_position[0]][self.base_station_position[1]] = None
+                        self.map_elements[map_tile_x][map_tile_y]=Base_station(map_x,map_y)
+                        self.base_station_position = (map_tile_x, map_tile_y)
                     #self.map_elements[map_x//element_size][map_y//element_size]=Track_segment(map_x, map_y, 'L', 'U', element_size)
                         
         return True
