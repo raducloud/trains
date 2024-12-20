@@ -129,14 +129,17 @@ class Game:
     def __init__(self):
 
         pygame.init()
+        pygame.display.set_caption("Train Routing Puzzle")
         self.clock = pygame.time.Clock()
         global FONT
         FONT = pygame.font.Font(None, 20)
-        pygame.display.set_caption("Train Routing Puzzle")
+        #map:
+        self.stations = []
+        self.base_station = Base_station(0,0) # however we don't put in map_elements here in init; so it will not be part of the map till the user places it
+        self.base_station_position = (-1,-1) # -1 means "doesn't exist"
         self.map_elements = [[None for x in range(MAP_WIDTH)] for y in range(MAP_HEIGHT)]
-        self.base_station_position = (0,0)
         self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-
+        #others:
         toolbar_y = MAP_HEIGHT * ELEMENT_SIZE + 10
         self.base_station_button = ToggleButton(BUTTON_MARGIN, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Base")
         self.station_button = ToggleButton(BUTTON_MARGIN * 2 + BUTTON_WIDTH, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Station")
@@ -145,26 +148,26 @@ class Game:
         self.clear_button = Button(WINDOW_WIDTH - BUTTON_MARGIN - BUTTON_WIDTH, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Clear")
         self.buttons = [self.base_station_button, self.station_button, self.track_button,self.start_button, self.clear_button]
 
-    def pop_buttons_except(self, except_button:Button):
-        for button in self.buttons:
-            if button!=except_button:
-                button.is_selected = False
     
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
     
-            #handle click on toolbar:
+            #handle clicks on buttons:
             for button in self.buttons:
-                if button.handle_event(event):
-                    self.pop_buttons_except(button) # pop the other buttons (in case they are toggle kind)
-                    if button == self.start_button:
-                        print('self.start_game()')
-                    elif button == self.clear_button:
-                        print('self.clear_map()')
-            
-            # handle click on map area:
+                if button.handle_event(event): # if button was pressed:
+                     # pop all other buttons (they might be toggle buttons)
+                    for other_button in self.buttons:
+                        if other_button!=button:
+                            other_button.is_selected = False
+                    match button:
+                        case self.start_button:
+                            print('self.start_game()')
+                        case self.clear_button:
+                            print('self.clear_map()')
+
+            # handle clicks on map area:
             if event.type == pygame.MOUSEBUTTONDOWN:
                 x,y = pygame.mouse.get_pos()
                 if x <= MAP_WIDTH*ELEMENT_SIZE and y <= MAP_HEIGHT*ELEMENT_SIZE:
@@ -174,12 +177,16 @@ class Game:
                     map_x = (x-1)//ELEMENT_SIZE*ELEMENT_SIZE+ELEMENT_SIZE//2
                     map_y = (y-1)//ELEMENT_SIZE*ELEMENT_SIZE+ELEMENT_SIZE//2
                     if self.station_button.is_selected:
+                        if self.map_elements[map_tile_x][map_tile_y] == self.base_station: # Base station overwritten
+                            self.base_station_position = (-1,-1)
                         self.map_elements[map_tile_x][map_tile_y]=Station(map_x,map_y)
                     if self.base_station_button.is_selected:
-                         # if the base station already existed, clear it from its old place - there can be only one:
-                        self.map_elements[self.base_station_position[0]][self.base_station_position[1]] = None
-                        self.map_elements[map_tile_x][map_tile_y]=Base_station(map_x,map_y)
+                        self.base_station=Base_station(map_x,map_y)
+                        if (self.base_station_position != (-1,-1)):  # if the base station already existed, clear it from its old place - there can be only one:
+                            self.map_elements[self.base_station_position[0]][self.base_station_position[1]] = None
+                        self.map_elements[map_tile_x][map_tile_y]=self.base_station
                         self.base_station_position = (map_tile_x, map_tile_y)
+                    # if self.
                     #self.map_elements[map_x//element_size][map_y//element_size]=Track_segment(map_x, map_y, 'L', 'U', element_size)
                         
         return True
