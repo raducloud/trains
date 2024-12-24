@@ -1,0 +1,2 @@
+- add small doc at beginning
+- switches 
