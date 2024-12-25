@@ -311,8 +311,8 @@ class Game: # Game mechanics, will have only 1 instance
                                 previous_ends = ('D', 'U')
                             
                             # Create new track segment
-                            map_prepvious_x = previous_tile_x * ELEMENT_SIZE + ELEMENT_SIZE//2
-                            map_previous_y = previous_tile_y * ELEMENT_SIZE + ELEMENT_SIZE//2
+                            map_current_x = current_tile_x * ELEMENT_SIZE + ELEMENT_SIZE//2
+                            map_current_y = current_tile_y * ELEMENT_SIZE + ELEMENT_SIZE//2
                             previous_track_segment = Track_segment(map_prepvious_x, map_previous_y, previous_ends[0], previous_ends[1])
                             
                             # Add to map and track chain
