@@ -72,9 +72,15 @@ class ToggleButton(Button):
 #playable elements:
 class Map_element:
 
-    def __init__(self, x, y, color=pygame.Color('white'), size=ELEMENT_SIZE):
+    # The parameters end1/end2 ('L'/'R'/'U'/'D' for left/right/up/down) and previous/next_segment references are for elements which can be part of chain (track segments, switches...)
+    # end1 and previous_segment are towards "upstream" and end2 and next_segment are towards "downstream", relative to the train movement from the base station.
+    def __init__(self, x, y, end1:str=None, end2:str=None, previous_segment=None, next_segment=None, color=pygame.Color('white'), size=ELEMENT_SIZE):
         self.x = x
         self.y = y
+        self.end1=end1
+        self.end2=end2
+        self.previous_segment = previous_segment
+        self.next_segment = next_segment
         self.size = size
         self.color = color
 
@@ -128,12 +134,6 @@ class Train(Map_element):
                           wheel_radius)
         
 class Track_segment(Map_element):
-    def __init__(self, x:int, y:int, end1:str=None, end2:str=None, previous_segment=None, next_segment=None, color=pygame.Color('white'), size=ELEMENT_SIZE):
-        Map_element.__init__(self, x, y, color=color, size=size);
-        self.end1=end1
-        self.end2=end2
-        self.previous_segment=previous_segment
-        self.next_segment=next_segment
 
     def draw(self, screen):
        
@@ -150,25 +150,29 @@ class Track_segment(Map_element):
         pygame.draw.line(screen, self.color, start_point, end_point, 3)  # later we can make a curve instead
 
 class Switch(Track_segment):
-    def __init__(self, x: int, y: int, fixed_end: str, mobile_end1: str, mobile_end2: str, previous_segment=None, next_segment=None, color=pygame.Color('white'), size=ELEMENT_SIZE):
-        # Initialize with the fixed end and first mobile end
-        super().__init__(x, y, fixed_end, mobile_end1, previous_segment, next_segment, color, size)
-        self.fixed_end = fixed_end
-        self.mobile_end1 = mobile_end1
-        self.mobile_end2 = mobile_end2
-        self.current_mobile_end = mobile_end1
-        self.next_segment2 = None  # For the alternate path
+    # this has 2 additional attributes, end2_inactive and next_segment_inactive. They are the alternative way the switch can connect if toggled, 
+    #     case in which end2/end2_inactive and next_segment/next_segment_inactive will switch places.
+    def __init__(self, x, y, 
+                 end1:str=None, end2:str=None, end2_inactive:str=None, 
+                 previous_segment=None, next_segment=None, next_segment_inactive=None, 
+                 color=pygame.Color('white'), size=ELEMENT_SIZE):
+        super().__init__(x, y, end1, end2, previous_segment, next_segment, color, size)
+        self.end2_inactive = end2_inactive
+        self.next_segment_inactive = next_segment_inactive
 
     def toggle(self):
         # Switch between the two possible mobile ends
-        if self.current_mobile_end == self.mobile_end1:
-            self.current_mobile_end = self.mobile_end2
-            self.end2 = self.mobile_end2
-            self.next_segment, self.next_segment2 = self.next_segment2, self.next_segment
-        else:
-            self.current_mobile_end = self.mobile_end1
-            self.end2 = self.mobile_end1
-            self.next_segment, self.next_segment2 = self.next_segment2, self.next_segment
+        self.end2, self.end2_inactive = self.end2_inactive, self.end2
+        
+        # Unlink the element connected via next_segment, if any:
+        # might not be necessary, commenting it out
+        # if self.next_segment and self.next_segment.previous_segment: self.next_segment.previous_segment = None
+        
+        self.next_segment, self.next_segment_inactive = self.next_segment_inactive, self.next_segment
+
+        # Link the element connexted via the new next_segment, if any:
+        # might not be necessary, commenting it out
+        if self.next_segment and self.next_segment.previous_segment: self.next_segment.previous_segment = self
 
     def draw(self, screen):
         points = {
@@ -178,13 +182,9 @@ class Switch(Track_segment):
             'D': (self.x, self.y + self.size//2)
         }
         
-        # Draw the fixed end
-        start_point = points[self.fixed_end]
-        # Draw both possible paths, but make the inactive one dimmer
-        for end, next_seg in [(self.mobile_end1, self.next_segment), (self.mobile_end2, self.next_segment2)]:
-            end_point = points[end]
-            color = self.color if end == self.current_mobile_end else pygame.Color(100, 100, 100)
-            pygame.draw.line(screen, color, start_point, end_point, 3)
+        # Draw both paths, make the inactive one dimmer
+        pygame.draw.line(screen, self.color, points[self.end1], points[self.end2], 3)
+        pygame.draw.line(screen, pygame.Color(100, 100, 100), points[self.end1], points[self.end2_inactive], 3)
         
         # Draw a hollow circle at the center of the switch
         circle_radius = self.size // 3
@@ -230,10 +230,13 @@ class Game: # Game mechanics, will have only 1 instance
         
         neighbors = {'L':left_buddy, 'R':right_buddy, 'U':up_buddy, 'D':down_buddy}
 
+        # first search for any unconnected tracks segments/switches, with priority on "upstream" segments/switches:
         for relative_position, buddy in neighbors.items():
-            if isinstance(buddy, Track_segment): return (relative_position, buddy);
+            if (isinstance(buddy, Track_segment) or isinstance(buddy, Switch)) and buddy.next_segment is None : return (relative_position, buddy);
         for relative_position, buddy in neighbors.items():
-            if isinstance(buddy, Switch): return (relative_position, buddy);
+            if (isinstance(buddy, Track_segment) or isinstance(buddy, Switch)) and buddy.next_segment_inactive is None : return (relative_position, buddy);
+        for relative_position, buddy in neighbors.items():
+            if (isinstance(buddy, Track_segment) or isinstance(buddy, Switch)) and buddy.previous_segment is None : return (relative_position, buddy);
         for relative_position, buddy in neighbors.items():
             if isinstance(buddy, Base_station): return (relative_position, buddy);
         for relative_position, buddy in neighbors.items():
@@ -266,11 +269,12 @@ class Game: # Game mechanics, will have only 1 instance
                     # click coordinates snapped to map grid (to center of tiles more exactly):
                     map_x = (x-1)//ELEMENT_SIZE*ELEMENT_SIZE+ELEMENT_SIZE//2
                     map_y = (y-1)//ELEMENT_SIZE*ELEMENT_SIZE+ELEMENT_SIZE//2
+                    clicked_element = self.map_elements[map_tile_x][map_tile_y]
 
 
 
                     if (self.station_button.is_selected 
-                        and self.map_elements[map_tile_x][map_tile_y] is None):
+                        and clicked_element is None):
                         
                         new_color = random.choice([color for color in ELEMENT_POSSIBLE_COLORS if color not in [station.color for station in self.stations]]) # chose a color not previously used
                         new_station = Station(map_x,map_y,new_color)
@@ -280,23 +284,16 @@ class Game: # Game mechanics, will have only 1 instance
                             messagebox.showinfo('Info',"This is the last station available")
                             self.station_button.is_enabled = False
                             self.station_button.is_selected = False
-                        if self.map_elements[map_tile_x][map_tile_y] == self.base_station: # Base station overwritten
-                            self.base_station_tile_position = (-1,-1)
-                        if self.map_elements[map_tile_x][map_tile_y] in self.stations: # Previous station overwritten:
-                            self.stations.remove(self.map_elements[map_tile_x][map_tile_y])
                         self.map_elements[map_tile_x][map_tile_y]=new_station
 
 
 
                     if (self.base_station_button.is_selected
-                        and self.map_elements[map_tile_x][map_tile_y] is None):
+                        and clicked_element is None):
 
                         self.base_station=Base_station(map_x,map_y)
                         if (self.base_station_tile_position != (-1,-1)):  # if the base station already existed, clear it from its old place - there can be only one:
                             self.map_elements[self.base_station_tile_position[0]][self.base_station_tile_position[1]] = None
-                        if self.map_elements[map_tile_x][map_tile_y] in self.stations: # Previous station overwritten:
-                            self.stations.remove(self.map_elements[map_tile_x][map_tile_y])
-                            self.station_button.is_enabled = True # in case it had been disabled out of lack of stations
                         self.map_elements[map_tile_x][map_tile_y]=self.base_station
                         self.base_station_tile_position = (map_tile_x, map_tile_y)
 
@@ -304,24 +301,25 @@ class Game: # Game mechanics, will have only 1 instance
 
                     if (self.switch_button.is_selected  and
                            # the switch can be placed on an empty tile or overwrite a track segment
-                           (self.map_elements[map_tile_x][map_tile_y] is None or isinstance(self.map_elements[map_tile_x][map_tile_y],Track_segment))):
+                           (clicked_element is None or isinstance(clicked_element,Track_segment))):
                         
-                        # if placing this, we have broken a track, connect the previous track segment as fixed-end and the next track segment as a mobile end:
-                        if isinstance(self.map_elements[map_tile_x][map_tile_y],Track_segment) and self.map_elements[map_tile_x][map_tile_y].previous_segment:
-                            previous_segment = self.map_elements[map_tile_x][map_tile_y].previous_segment
-                            fixed_end = {'L':'R', 'R':'L', 'U':'D', 'D':'U'}[previous_segment.end2]
-                            # if has next segment....
+                        new_switch = Switch(map_x, map_y)
+                        
+                        # if, when placing this, we break a chain, reconnect it witih this new switch in the middle:
+                        if isinstance(clicked_element, Track_segment):
+                            if clicked_element.previous_segment:
+                                clicked_element.previous_segment.next_segment = new_switch
+                                new_switch.end1 = {'L':'R', 'R':'L', 'U':'D', 'D':'U'}[clicked_element.previous_segment.end2]
+                            if clicked_element.next_segment:
+                                clicked_element.next_segment.previous_segment = new_switch
+                                new_switch.end2 = {'L':'R', 'R':'L', 'U':'D', 'D':'U'}[clicked_element.next_segment.end1]
 
-                        else:
-                            previous_segment = None
-                            fixed_end = None
-                        
-                        # Scan for neighboring track to connect to
+                        # Scan for neighboring track/switches to connect any unconnected ends of the new switch:
                         neighbor_info = self.scan_neighbors(map_tile_x, map_tile_y)
                         if neighbor_info:
                             neighbor_relative_position, neighbor = neighbor_info
                             # Set up the switch with fixed end connecting to the neighbor
-                            fixed_end = neighbor_relative_position
+                            if fixed_end = neighbor_relative_position
                             
                             # Define possible mobile ends based on fixed end
                             if fixed_end in ['L', 'R']:  # Horizontal connection
@@ -329,7 +327,7 @@ class Game: # Game mechanics, will have only 1 instance
                             else:  # Vertical connection
                                 mobile_end1, mobile_end2 = 'L', 'R'
                             
-                            new_switch = Switch(map_x, map_y, fixed_end, mobile_end1, mobile_end2)
+                            # new_switch = Switch(map_x, map_y, fixed_end, mobile_end1, mobile_end2)
                             
                             # Connect to neighbor if it's a track
                             if isinstance(neighbor, Track_segment):
@@ -342,7 +340,7 @@ class Game: # Game mechanics, will have only 1 instance
 
 
 
-            # Handle track placement (by dragging):
+            # Handle track placement. This is a bit different than the above elements placement, as we use a dragging mechanism so we have to consider the mouse movement event too.
             if self.track_button.is_selected:
                 
                 if event.type == pygame.MOUSEBUTTONDOWN: #first segment in a chain. 
@@ -355,22 +353,37 @@ class Game: # Game mechanics, will have only 1 instance
 
                             self.is_dragging_track = True
                             
-                            neighbor_info = self.scan_neighbors(current_tile_x, current_tile_y)  #scan for tracks or stations nearby:
+                            current_track_segment = Track_segment(current_tile_x * ELEMENT_SIZE + ELEMENT_SIZE//2, current_tile_y * ELEMENT_SIZE + ELEMENT_SIZE//2)
+                            
+                            neighbor_info = self.scan_neighbors(current_tile_x, current_tile_y)  #scan for elements nearby, and connect them:
                             if neighbor_info:
                                 neighbor_relative_position, neighbor = neighbor_info
-                                current_end1 = neighbor_relative_position
-                                current_end2 = {'L':'R', 'R':'L', 'U':'D', 'D':'U'}.get(current_end1)  # make end2 the opposite of end1 for now, of course might be overwritten later
-                            else: # No neighbors, put some defaults:
+                                if neighbor.next_segment is None:
+                                    neighbor.next_segment = current_track_segment
+                                    neighbor.end2 = {'L':'R', 'R':'L', 'U':'D', 'D':'U'}[neighbor_relative_position]
+                                    current_track_segment.end1 = neighbor_relative_position
+                                    current_track_segment.previous_segment = neighbor
+                                    # put a default for end2, the opposite of end1, might be ovewritten later:
+                                    current_track_segment.end2 = {'L':'R', 'R':'L', 'U':'D', 'D':'U'}[current_track_segment.end1] 
+                                # if it's a Switch, also consider the special "next_segment_inactive" and "end2_inactive" connections:
+                                elif isinstance(neighbor, Switch) and neighbor.next_segment_inactive is None:
+                                    neighbor.next_segment_inactive = current_track_segment
+                                    neighbor.end2_inactive = {'L':'R', 'R':'L', 'U':'D', 'D':'U'}[neighbor_relative_position]
+                                    current_track_segment.end1 = neighbor_relative_position
+                                    current_track_segment.previous_segment = neighbor
+                                    # put a default for end2, the opposite of end1, might be ovewritten later:
+                                    current_track_segment.end2 = {'L':'R', 'R':'L', 'U':'D', 'D':'U'}[current_track_segment.end1] 
+                                elif neighbor.previous_segment is None:
+                                    neighbor.previous_segment = current_track_segment
+                                    neighbor.end1 = {'L':'R', 'R':'L', 'U':'D', 'D':'U'}[neighbor_relative_position]
+                                    current_track_segment.end2 = neighbor_relative_position
+                                    current_track_segment.next_segment = neighbor
+                                    # put a default for end1, the opposite of end2, might be ovewritten later:
+                                    current_track_segment.end1 = {'L':'R', 'R':'L', 'U':'D', 'D':'U'}[current_track_segment.end2] 
+                            else: # No neighbors, put some default ends and no neighbor references:
                                 neighbor=None
-                                current_end1='L' #defauot
-                                current_end2='R' #default
-                            current_track_segment = Track_segment(current_tile_x * ELEMENT_SIZE + ELEMENT_SIZE//2, current_tile_y * ELEMENT_SIZE + ELEMENT_SIZE//2, current_end1, current_end2)
-                            
-                            # if the neighbor if an unfinished track, connect it:
-                            if neighbor and isinstance(neighbor, Track_segment) and (not neighbor.next_segment):
-                                neighbor.next_segment = current_track_segment
-                                neighbor.end2 = current_end2 # we actually need the reverse neighbor_relative_position, which we've already calculated in current_end2, even if current_end2 is just temporary
-                                current_track_segment.previous_segment = neighbor 
+                                current_track_segment.end1='L' #default
+                                current_track_segment.end2='R' #default
 
                             # add the track segment to the map and chain:
                             self.map_elements[current_tile_x][current_tile_y] = current_track_segment
