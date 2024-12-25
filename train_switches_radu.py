@@ -172,8 +172,8 @@ class Game: # Game mechanics, will have only 1 instance
         self.buttons = [self.base_station_button, self.station_button, self.track_button,self.start_button, self.clear_button]
    
     def scan_neighbors(self, map_tile_x:int, map_tile_y:int) -> Tuple[str, Map_element]:
-         # Returns the first neighbor element found and it's position in format l/R/U/D.
-         # Since it is mostly useful for laying and detecting track segments, it first scans for track segments:
+         # Returns the first neighbor element found and its relative position in format l/R/U/D.
+         # Since it is mostly useful for laying and detecting track segments, it scans for track segments with priority:
         left_buddy = right_buddy = up_buddy = down_buddy = None
         if map_tile_x > 0 : left_buddy = self.map_elements[map_tile_x-1][map_tile_y]
         if map_tile_x < MAP_WIDTH - 1 : right_buddy = self.map_elements[map_tile_x+1][map_tile_y]
@@ -214,14 +214,16 @@ class Game: # Game mechanics, will have only 1 instance
                     map_tile_x = (x-1)//ELEMENT_SIZE
                     map_tile_y = (y-1)//ELEMENT_SIZE
                     # click coordinates snapped to map grid (to center of tiles more exactly):
-                    map_prepvious_x = (x-1)//ELEMENT_SIZE*ELEMENT_SIZE+ELEMENT_SIZE//2
-                    map_previous_y = (y-1)//ELEMENT_SIZE*ELEMENT_SIZE+ELEMENT_SIZE//2
+                    map_x = (x-1)//ELEMENT_SIZE*ELEMENT_SIZE+ELEMENT_SIZE//2
+                    map_y = (y-1)//ELEMENT_SIZE*ELEMENT_SIZE+ELEMENT_SIZE//2
 
 
 
-                    if self.station_button.is_selected:
+                    if (self.station_button.is_selected 
+                        and self.map_elements[map_tile_x][map_tile_y] is None):
+                        
                         new_color = random.choice([color for color in ELEMENT_POSSIBLE_COLORS if color not in [station.color for station in self.stations]]) # chose a color not previously used
-                        new_station = Station(map_prepvious_x,map_previous_y,new_color)
+                        new_station = Station(map_x,map_y,new_color)
                         self.stations.append(new_station)
                         if len(self.stations) == len(ELEMENT_POSSIBLE_COLORS):
                             Tk().wm_withdraw() # draw back the main window for showing pop-up
@@ -236,8 +238,10 @@ class Game: # Game mechanics, will have only 1 instance
 
 
 
-                    if self.base_station_button.is_selected:
-                        self.base_station=Base_station(map_prepvious_x,map_previous_y)
+                    if (self.base_station_button.is_selected
+                        and self.map_elements[map_tile_x][map_tile_y] is None):
+                        
+                        self.base_station=Base_station(map_x,map_y)
                         if (self.base_station_tile_position != (-1,-1)):  # if the base station already existed, clear it from its old place - there can be only one:
                             self.map_elements[self.base_station_tile_position[0]][self.base_station_tile_position[1]] = None
                         if self.map_elements[map_tile_x][map_tile_y] in self.stations: # Previous station overwritten:
@@ -254,32 +258,35 @@ class Game: # Game mechanics, will have only 1 instance
                 if event.type == pygame.MOUSEBUTTONDOWN: #first segment in a chain. 
                     x, y = pygame.mouse.get_pos()
                     if x <= MAP_WIDTH*ELEMENT_SIZE and y <= MAP_HEIGHT*ELEMENT_SIZE:
-                        self.is_dragging_track = True
-                        
                         current_tile = ((x-1)//ELEMENT_SIZE, (y-1)//ELEMENT_SIZE)
                         current_tile_x, current_tile_y = current_tile
-                        neighbor_info = self.scan_neighbors(current_tile_x, current_tile_y)  #scan for tracks or stations nearby:
-                        if neighbor_info:
-                            neighbor_relative_position, neighbor = neighbor_info
-                            current_end1 = neighbor_relative_position
-                            current_end2 = {'L':'R', 'R':'L', 'U':'D', 'D':'U'}.get(current_end1)  # make end2 the opposite of end1 for now, of course might be overwritten later
-                        else: # No neighbors, put some defaults:
-                            neighbor=None
-                            current_end1='L' #defauot
-                            current_end2='R' #default
-                        current_track_segment = Track_segment(current_tile_x * ELEMENT_SIZE + ELEMENT_SIZE//2, current_tile_y * ELEMENT_SIZE + ELEMENT_SIZE//2, current_end1, current_end2)
                         
-                        # if the neighbor if an unfinished track, connect it:
-                        if neighbor and isinstance(neighbor, Track_segment) and (not neighbor.next_segment):
-                            neighbor.next_segment = current_track_segment
-                            neighbor.end2 = current_end2 # we actually need the reverse neighbor_relative_position, which we've already calculated in current_end2, even if current_end2 is just temporary
-                            current_track_segment.previous_segment = neighbor 
+                        if self.map_elements[current_tile_x][current_tile_y] is None: # tracks should not overwrite other elements
 
-                        # add the track segment to the map and chain:
-                        self.map_elements[current_tile_x][current_tile_y] = current_track_segment
-                        self.current_track_chain.append(current_track_segment)
-                        #prepare for next iteration:
-                        self.previous_track_tile_position = current_tile                            
+                            self.is_dragging_track = True
+                            
+                            neighbor_info = self.scan_neighbors(current_tile_x, current_tile_y)  #scan for tracks or stations nearby:
+                            if neighbor_info:
+                                neighbor_relative_position, neighbor = neighbor_info
+                                current_end1 = neighbor_relative_position
+                                current_end2 = {'L':'R', 'R':'L', 'U':'D', 'D':'U'}.get(current_end1)  # make end2 the opposite of end1 for now, of course might be overwritten later
+                            else: # No neighbors, put some defaults:
+                                neighbor=None
+                                current_end1='L' #defauot
+                                current_end2='R' #default
+                            current_track_segment = Track_segment(current_tile_x * ELEMENT_SIZE + ELEMENT_SIZE//2, current_tile_y * ELEMENT_SIZE + ELEMENT_SIZE//2, current_end1, current_end2)
+                            
+                            # if the neighbor if an unfinished track, connect it:
+                            if neighbor and isinstance(neighbor, Track_segment) and (not neighbor.next_segment):
+                                neighbor.next_segment = current_track_segment
+                                neighbor.end2 = current_end2 # we actually need the reverse neighbor_relative_position, which we've already calculated in current_end2, even if current_end2 is just temporary
+                                current_track_segment.previous_segment = neighbor 
+
+                            # add the track segment to the map and chain:
+                            self.map_elements[current_tile_x][current_tile_y] = current_track_segment
+                            self.current_track_chain.append(current_track_segment)
+                            #prepare for next iteration:
+                            self.previous_track_tile_position = current_tile                            
 
 
                 elif event.type == pygame.MOUSEBUTTONUP:
@@ -293,31 +300,41 @@ class Game: # Game mechanics, will have only 1 instance
                     x, y = pygame.mouse.get_pos()
                     if x <= MAP_WIDTH*ELEMENT_SIZE and y <= MAP_HEIGHT*ELEMENT_SIZE:
                         current_tile = ((x-1)//ELEMENT_SIZE, (y-1)//ELEMENT_SIZE)
+                        current_tile_x, current_tile_y = current_tile
                         
                         # Only create new track if we've moved to a different tile
-                        if current_tile != self.previous_track_tile_position and self.previous_track_tile_position is not None:
+                        if (current_tile != self.previous_track_tile_position 
+                            and self.previous_track_tile_position is not None
+                            # don't overwrite something else on the map
+                            and self.map_elements[current_tile_x][current_tile_y] is None):
+
                             # Determine track orientation based on movement
                             previous_tile_x, previous_tile_y = self.previous_track_tile_position
-                            current_tile_x, current_tile_y = current_tile
                             
                             # Determine track endpoints
                             if current_tile_x > previous_tile_x:
-                                previous_ends = ('L', 'R')
+                                current_ends = ('L', 'R') # end2 is just a default
+                                self.current_track_chain[-1].end2 = 'R' # previous' end2 might be changed by the direction of the new segment, so update it
                             elif current_tile_x < previous_tile_x:
-                                previous_ends = ('R', 'L')
+                                current_ends = ('R', 'L')
+                                self.current_track_chain[-1].end2 = 'L'
                             elif current_tile_y > previous_tile_y:
-                                previous_ends = ('U', 'D')
+                                current_ends = ('U', 'D')
+                                self.current_track_chain[-1].end2 = 'D'
                             else:
-                                previous_ends = ('D', 'U')
+                                current_ends = ('D', 'U')
+                                self.current_track_chain[-1].end2 = 'U'
                             
-                            # Create new track segment
                             map_current_x = current_tile_x * ELEMENT_SIZE + ELEMENT_SIZE//2
                             map_current_y = current_tile_y * ELEMENT_SIZE + ELEMENT_SIZE//2
-                            previous_track_segment = Track_segment(map_prepvious_x, map_previous_y, previous_ends[0], previous_ends[1])
+                            current_track_segment = Track_segment(map_current_x, map_current_y, current_ends[0], current_ends[1], previous_segment=self.current_track_chain[-1])
+
+                            # also forward link the previous to this one:
+                            self.current_track_chain[-1].next_segment = current_track_segment
                             
                             # Add to map and track chain
-                            self.map_elements[previous_tile_x][previous_tile_y] = previous_track_segment
-                            self.current_track_chain.append(previous_track_segment)
+                            self.map_elements[current_tile_x][current_tile_y] = current_track_segment
+                            self.current_track_chain.append(current_track_segment)
                             #prepare for next iteration:
                             self.previous_track_tile_position = current_tile
 
