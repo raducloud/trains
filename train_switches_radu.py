@@ -137,15 +137,15 @@ class Track_segment(Map_element):
 
     def draw(self, screen):
        
-        points = {  # points where the track can connect - left, right, up or down
+        points_map = {  # points where the track can connect - left, right, up or down
             'L': (self.x - self.size//2, self.y),
             'R': (self.x + self.size//2, self.y),
             'U': (self.x, self.y - self.size//2),
             'D': (self.x, self.y + self.size//2)
         }
         
-        start_point = points[self.end1]
-        end_point = points[self.end2]
+        start_point = points_map[self.end1]
+        end_point = points_map[self.end2]
         
         pygame.draw.line(screen, self.color, start_point, end_point, 3)  # later we can make a curve instead
 
@@ -164,18 +164,13 @@ class Switch(Track_segment):
         # Switch between the two possible mobile ends
         self.end2, self.end2_inactive = self.end2_inactive, self.end2
         
-        # Unlink the element connected via next_segment, if any:
-        # might not be necessary, commenting it out
-        # if self.next_segment and self.next_segment.previous_segment: self.next_segment.previous_segment = None
-        
         self.next_segment, self.next_segment_inactive = self.next_segment_inactive, self.next_segment
 
-        # Link the element connexted via the new next_segment, if any:
-        # might not be necessary, commenting it out
-        if self.next_segment and self.next_segment.previous_segment: self.next_segment.previous_segment = self
+        # Redundant check/relink next segment
+        # if self.next_segment and self.next_segment.previous_segment: self.next_segment.previous_segment = self
 
     def draw(self, screen):
-        points = {
+        points_map = {
             'L': (self.x - self.size//2, self.y),
             'R': (self.x + self.size//2, self.y),
             'U': (self.x, self.y - self.size//2),
@@ -183,8 +178,8 @@ class Switch(Track_segment):
         }
         
         # Draw both paths, make the inactive one dimmer
-        pygame.draw.line(screen, self.color, points[self.end1], points[self.end2], 3)
-        pygame.draw.line(screen, pygame.Color(100, 100, 100), points[self.end1], points[self.end2_inactive], 3)
+        pygame.draw.line(screen, self.color, points_map[self.end1], points_map[self.end2], 3)
+        pygame.draw.line(screen, pygame.Color(100, 100, 100), points_map[self.end1], points_map[self.end2_inactive], 3)
         
         # Draw a hollow circle at the center of the switch
         circle_radius = self.size // 3
@@ -220,12 +215,12 @@ class Game: # Game mechanics, will have only 1 instance
         self.buttons = [self.base_station_button, self.station_button, self.track_button, self.switch_button, self.start_button]
    
     def get_opposite_end(end:str)->str:
-        return {'L':'R', 'R':'L', 'U':'D', 'D':'U'}[end]
+        return {'L':'R', 'R':'L', 'U':'D', 'D':'U', None:None}[end]
     
-    def get_neighbor(self, map_tile_x:int, map_tile_y:int, direction:str=UPSTREAM) -> Tuple[str, Map_element]:
+    def get_neighbor(self, map_tile_x:int, map_tile_y:int, direction:str) -> Tuple[str, Map_element]:
          # Returns the first unconnected neighbor element found and its relative position in format l/R/U/D.
-         # It is mostly useful for laying and detecting track/switch chains.
-         # It prioritizes neighbors in the direction specified by "direction" parameter, for ordering and specific searching when necessary.
+         # It is useful during laying track/switch chains, for connecting0
+         # direction parameter should be "upstraem" or "downstream".
 
         left_buddy = right_buddy = up_buddy = down_buddy = None
         if map_tile_x > 0 : left_buddy = self.map_elements[map_tile_x-1][map_tile_y]
@@ -236,18 +231,19 @@ class Game: # Game mechanics, will have only 1 instance
         neighbors = {'L':left_buddy, 'R':right_buddy, 'U':up_buddy, 'D':down_buddy}
 
         if direction==UPSTREAM:
+            # The below map element types are ordered by priority of connection, in case multiple neighbor types exist. This order can be changed by the likes of the players.
+            for relative_position, buddy in neighbors.items():
+                if (isinstance(buddy, Base_station) and buddy.previous_segment is None) : return (relative_position, buddy)
             for relative_position, buddy in neighbors.items():
                 if (isinstance(buddy, Track_segment) or isinstance(buddy, Switch)) and buddy.next_segment is None : return (relative_position, buddy)
             for relative_position, buddy in neighbors.items():
-                if (isinstance(buddy, Track_segment) or isinstance(buddy, Switch)) and buddy.next_segment_inactive is None : return (relative_position, buddy)
+                if isinstance(buddy, Switch) and buddy.next_segment_inactive is None : return (relative_position, buddy)
         elif direction==DOWNSTREAM:
             for relative_position, buddy in neighbors.items():
                 if (isinstance(buddy, Track_segment) or isinstance(buddy, Switch)) and buddy.previous_segment is None : return (relative_position, buddy)
             for relative_position, buddy in neighbors.items():
-                if (isinstance(buddy, Base_station) and buddy.previous_segment is None) : return (relative_position, buddy)
-            for relative_position, buddy in neighbors.items():
                 if (isinstance(buddy, Station) and buddy.previous_segment is None) : return (relative_position, buddy)
-        else: raise ValueError("get_neighbor expects direction='{UPSTREAM}'/'{DOWNSTREAM}', but received {direction}") 
+        else: raise ValueError("get_neighbor expects direction='{UPSTREAM}'/'{DOWNSTREAM}', but received '{direction}'") 
         return None # nothing found
 
     def handle_events(self):
@@ -315,11 +311,11 @@ class Game: # Game mechanics, will have only 1 instance
                         # Connect the new_switch:
                         # If, when placing it, we break a chain, reconnect the chain witih this new switch in it.
                         # Otherwise, connect this new switch to whatever neighbors are unconnected, if any.
-                        if clicked_element.previous_segment:
+                        if clicked_element.previous_segment: # upstream connectoin
                             clicked_element.previous_segment.next_segment = new_switch
                             new_switch.end1 = clicked_element.end1
                             new_switch.previous_segment = clicked_element.previous_segment
-                        else: #otherwise, search for upstream unconnected neighbors:
+                        else: # otherwise, search for anyupstream unconnected neighbors:
                             neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, UPSTREAM) 
                             if neighbor_info:
                                 neighbor_relative_position, neighbor = neighbor_info
@@ -328,15 +324,13 @@ class Game: # Game mechanics, will have only 1 instance
                                     neighbor.end2 = self.get_opposite_end(neighbor_relative_position)
                                     new_switch.end1 = neighbor_relative_position
                                     new_switch.previous_segment = neighbor
-                                # if neighbor's next_segment was already connected and but that neighbor is a Switch, also consider checking if its special "next_segment_inactive" is unconnected:
+                                # if neighbor's next_segment was already connected but that neighbor is a Switch, also consider checking if its special "next_segment_inactive" is unconnected:
                                 elif isinstance(neighbor, Switch) and neighbor.next_segment_inactive is None:
                                     neighbor.next_segment_inactive = new_switch
                                     neighbor.end2_inactive = self.get_opposite_end(neighbor_relative_position)
                                     new_switch.end1 = neighbor_relative_position
                                     new_switch.previous_segment = neighbor
                                 # no need for "else:", because since get_neighbor returned something, for sure that something has an unconnected end.
-                            else: # no upstream neighbors, just set a default ending:
-                                new_switch.end1 = 'L'
                             
                         # Now the same for downstream. First search if our new element was placed on an existing chain:
                         if clicked_element.next_segment:
@@ -361,15 +355,32 @@ class Game: # Game mechanics, will have only 1 instance
                                 neighbor.end1 = self.get_opposite_end(neighbor_relative_position)
                                 new_switch.end2_inactive = neighbor_relative_position
                                 new_switch.next_segment_inactive = neighbor
-                            else:
-                                new_switch.end2_inactive = 'R' # default
-
-
+                        
+                        # If either end is unconnected, chose some default orientations for end1/2/2_inactive: 
+                        all_ends_desc = {'end1', 'end2', 'end2_inactive'}
+                        all_ends_possible_values = {'L','R','U','D'}
+                        need_defaults = True
+                        while need_defaults:
+                            # take first found unconnected end, if any
+                            unconnected_end_desc = next((end_desc for end_desc in all_ends_desc if getattr(new_switch, end_desc) is None), None)
+                            if unconnected_end_desc:
+                                connected_ends = {getattr(new_switch, end_desc) for end_desc in all_ends_desc if getattr(new_switch, end_desc)}
+                                if len(connected_ends) > 0:
+                                    setattr(new_switch, unconnected_end_desc, 
+                                            next(iter(all_ends_possible_values - connected_ends))) # assigns the first unused orientation found
+                                else: # none of the 3 ends is connected, set a hardcoded default - this will happen a single time in this loop
+                                    setattr(new_switch, unconnected_end_desc, 'L')
+                            else: # all connected, finish:
+                                need_defaults = False
+                        
                         self.map_elements[current_tile_x][current_tile_y] = new_switch
 
 
 
             # Handle track placement. This is a bit different than the above elements placement, as we use a dragging mechanism so we have to consider the mouse movement event too.
+            # We have 2 separate events for which we lay segments: 
+            #    MOUSEBUTTONDOWN (for the first segment in a chain) - for connecting the segment, we look for neighbors 
+            #    MOUSEMOTION (for next segments in a chain) - for connecting the segment, we ignore neighbors and just connect along the line dragged by the user, to avoid possibly unwanted neighbor connections
             if self.track_button.is_selected:
                 
                 if event.type == pygame.MOUSEBUTTONDOWN: #first segment in a chain. 
