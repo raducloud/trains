@@ -214,26 +214,36 @@ class Game: # Game mechanics, will have only 1 instance
         self.start_button = Button(WINDOW_WIDTH - BUTTON_MARGIN - BUTTON_WIDTH, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Start")
         self.buttons = [self.base_station_button, self.station_button, self.track_button, self.switch_button, self.start_button]
    
-    def get_opposite_end(end:str)->str:
+    def get_opposite_end(self, end:str)->str:
         return {'L':'R', 'R':'L', 'U':'D', 'D':'U', None:None}[end]
     
-    def get_neighbor(self, map_tile_x:int, map_tile_y:int, direction:str) -> Tuple[str, Map_element]:
+    def get_neighbor(self, map_tile_x:int, map_tile_y:int, direction:str, exclude:list=[]) -> Tuple[str, Map_element]:
          # Returns the first unconnected neighbor element found and its relative position in format l/R/U/D.
          # It is useful during laying track/switch chains, for connecting0
          # direction parameter should be "upstraem" or "downstream".
+         # exclude parameter is used for cases like a neighbor being able to connect both to UPSTREAM and DOWNSTREAM, to not create an infinite cycle, exclude it at second search
 
-        left_buddy = right_buddy = up_buddy = down_buddy = None
-        if map_tile_x > 0 : left_buddy = self.map_elements[map_tile_x-1][map_tile_y]
-        if map_tile_x < MAP_WIDTH - 1 : right_buddy = self.map_elements[map_tile_x+1][map_tile_y]
-        if map_tile_y > 0 : up_buddy = self.map_elements[map_tile_x][map_tile_y-1]
-        if map_tile_y < MAP_WIDTH - 1 : down_buddy = self.map_elements[map_tile_x][map_tile_y+1]
+        neighbors = {}
+        if map_tile_x > 0 : 
+            neighbor = self.map_elements[map_tile_x-1][map_tile_y]
+            if neighbor: neighbors['L']=neighbor
+        if map_tile_x < MAP_WIDTH - 1 : 
+            neighbor = self.map_elements[map_tile_x+1][map_tile_y]
+            if neighbor: neighbors['R']=neighbor
+        if map_tile_y > 0 :
+            neighbor = self.map_elements[map_tile_x][map_tile_y-1]
+            if neighbor: neighbors['U']=neighbor
+        if map_tile_y < MAP_WIDTH - 1 :
+            neighbor = self.map_elements[map_tile_x][map_tile_y+1]
+            if neighbor: neighbors['D']=neighbor
         
-        neighbors = {'L':left_buddy, 'R':right_buddy, 'U':up_buddy, 'D':down_buddy}
+        # filter out excluded elements:
+        neighbors = {end:element for end, element in neighbors.items() if element not in exclude}
 
         if direction==UPSTREAM:
             # The below map element types are ordered by priority of connection, in case multiple neighbor types exist. This order can be changed by the likes of the players.
             for relative_position, buddy in neighbors.items():
-                if (isinstance(buddy, Base_station) and buddy.previous_segment is None) : return (relative_position, buddy)
+                if (isinstance(buddy, Base_station) and buddy.next_segment is None) : return (relative_position, buddy)
             for relative_position, buddy in neighbors.items():
                 if (isinstance(buddy, Track_segment) or isinstance(buddy, Switch)) and buddy.next_segment is None : return (relative_position, buddy)
             for relative_position, buddy in neighbors.items():
@@ -311,12 +321,14 @@ class Game: # Game mechanics, will have only 1 instance
                         # Connect the new_switch:
                         # If, when placing it, we break a chain, reconnect the chain witih this new switch in it.
                         # Otherwise, connect this new switch to whatever neighbors are unconnected, if any.
+                        neighbors_connected = []
                         if clicked_element.previous_segment: # upstream connectoin
                             clicked_element.previous_segment.next_segment = new_switch
                             new_switch.end1 = clicked_element.end1
                             new_switch.previous_segment = clicked_element.previous_segment
-                        else: # otherwise, search for anyupstream unconnected neighbors:
-                            neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, UPSTREAM) 
+                            neighbors_connected.append(clicked_element.previous_segment)
+                        else: # otherwise, search for any upstream unconnected neighbors:
+                            neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, UPSTREAM, exclude=neighbors_connected) 
                             if neighbor_info:
                                 neighbor_relative_position, neighbor = neighbor_info
                                 if neighbor.next_segment is None:
@@ -324,12 +336,13 @@ class Game: # Game mechanics, will have only 1 instance
                                     neighbor.end2 = self.get_opposite_end(neighbor_relative_position)
                                     new_switch.end1 = neighbor_relative_position
                                     new_switch.previous_segment = neighbor
-                                # if neighbor's next_segment was already connected but that neighbor is a Switch, also consider checking if its special "next_segment_inactive" is unconnected:
+                                # if neighbor's next_segment was already connected but that neighbor is a Switch, also consider checking if its secondary "next_segment_inactive" is unconnected:
                                 elif isinstance(neighbor, Switch) and neighbor.next_segment_inactive is None:
                                     neighbor.next_segment_inactive = new_switch
                                     neighbor.end2_inactive = self.get_opposite_end(neighbor_relative_position)
                                     new_switch.end1 = neighbor_relative_position
                                     new_switch.previous_segment = neighbor
+                                neighbors_connected.append(neighbor)
                                 # no need for "else:", because since get_neighbor returned something, for sure that something has an unconnected end.
                             
                         # Now the same for downstream. First search if our new element was placed on an existing chain:
@@ -337,24 +350,27 @@ class Game: # Game mechanics, will have only 1 instance
                             clicked_element.next_segment.previous_segment = new_switch
                             new_switch.end2 = clicked_element.end2
                             new_switch.next_segment = clicked_element.next_segment
+                            neighbors_connected.append(clicked_element.next_segment)
                         else: #otherwise, search for downstream unconnected neighbors:
-                            neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, DOWNSTREAM) 
+                            neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, DOWNSTREAM, exclude=neighbors_connected) 
                             if neighbor_info:
                                 neighbor_relative_position, neighbor = neighbor_info
                                 neighbor.previous_segment = new_switch
                                 neighbor.end1 = self.get_opposite_end(neighbor_relative_position)
                                 new_switch.end2 = neighbor_relative_position
                                 new_switch.next_segment = neighbor
+                                neighbors_connected.append(neighbor)
                             else:
                                 new_switch.end2 = 'R' # default
                             # Now the same but for the new switch's next_segment_inactive, maybe we find a connection for it too:
-                            neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, DOWNSTREAM) 
+                            neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, DOWNSTREAM, exclude=neighbors_connected) 
                             if neighbor_info:
                                 neighbor_relative_position, neighbor = neighbor_info
                                 neighbor.previous_segment = new_switch
                                 neighbor.end1 = self.get_opposite_end(neighbor_relative_position)
                                 new_switch.end2_inactive = neighbor_relative_position
                                 new_switch.next_segment_inactive = neighbor
+                                neighbors_connected.append(neighbor)
                         
                         # If either end is unconnected, chose some default orientations for end1/2/2_inactive: 
                         all_ends_desc = {'end1', 'end2', 'end2_inactive'}
@@ -396,6 +412,7 @@ class Game: # Game mechanics, will have only 1 instance
                             current_track_segment = Track_segment(current_tile_x * ELEMENT_SIZE + ELEMENT_SIZE//2, current_tile_y * ELEMENT_SIZE + ELEMENT_SIZE//2)
                             
                             # scan for unconnected upstream neigbors if any, and connect the first found:
+                            neighbors_connected = []
                             neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, UPSTREAM) 
                             if neighbor_info:
                                 neighbor_relative_position, neighbor = neighbor_info
@@ -410,17 +427,19 @@ class Game: # Game mechanics, will have only 1 instance
                                     neighbor.end2_inactive = self.get_opposite_end(neighbor_relative_position)
                                     current_track_segment.end1 = neighbor_relative_position
                                     current_track_segment.previous_segment = neighbor
+                                neighbors_connected.append(neighbor)
                             else: # no upstream neighbors
                                 current_track_segment.end1 = 'L' # default
                             
                             # same for downstram:
-                            neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, DOWNSTREAM) 
+                            neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, DOWNSTREAM, exclude=neighbors_connected) 
                             if neighbor_info:
                                 neighbor_relative_position, neighbor = neighbor_info
                                 neighbor.previous_segment = current_track_segment
                                 neighbor.end1 = self.get_opposite_end(neighbor_relative_position)
                                 current_track_segment.end2 = neighbor_relative_position
                                 current_track_segment.next_segment = neighbor
+                                neighbors_connected.append(neighbor)
                             else: # no downstream neighbors
                                 current_track_segment.end2='R' #default
 
