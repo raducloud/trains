@@ -290,7 +290,7 @@ class Game: # Game mechanics, will have only 1 instance
                         and clicked_element is None):
                         
                         new_color = random.choice([color for color in ELEMENT_POSSIBLE_COLORS if color not in [station.color for station in self.stations]]) # chose a color not previously used
-                        new_station = Station(map_x,map_y,new_color)
+                        new_station = Station(x=map_x,y=map_y,color=new_color)
                         self.stations.append(new_station)
                         if len(self.stations) == len(ELEMENT_POSSIBLE_COLORS):
                             Tk().wm_withdraw() # draw back the main window for showing pop-up
@@ -322,7 +322,7 @@ class Game: # Game mechanics, will have only 1 instance
                         # If, when placing it, we break a chain, reconnect the chain witih this new switch in it.
                         # Otherwise, connect this new switch to whatever neighbors are unconnected, if any.
                         neighbors_connected = []
-                        if clicked_element.previous_segment: # upstream connectoin
+                        if clicked_element and clicked_element.previous_segment: # upstream connectoin
                             clicked_element.previous_segment.next_segment = new_switch
                             new_switch.end1 = clicked_element.end1
                             new_switch.previous_segment = clicked_element.previous_segment
@@ -346,7 +346,7 @@ class Game: # Game mechanics, will have only 1 instance
                                 # no need for "else:", because since get_neighbor returned something, for sure that something has an unconnected end.
                             
                         # Now the same for downstream. First search if our new element was placed on an existing chain:
-                        if clicked_element.next_segment:
+                        if clicked_element and clicked_element.next_segment:
                             clicked_element.next_segment.previous_segment = new_switch
                             new_switch.end2 = clicked_element.end2
                             new_switch.next_segment = clicked_element.next_segment
@@ -409,7 +409,7 @@ class Game: # Game mechanics, will have only 1 instance
 
                             self.is_dragging_track = True
                             
-                            current_track_segment = Track_segment(current_tile_x * ELEMENT_SIZE + ELEMENT_SIZE//2, current_tile_y * ELEMENT_SIZE + ELEMENT_SIZE//2)
+                            current_track_segment = Track_segment(x = current_tile_x * ELEMENT_SIZE + ELEMENT_SIZE//2, y = current_tile_y * ELEMENT_SIZE + ELEMENT_SIZE//2)
                             
                             # scan for unconnected upstream neigbors if any, and connect the first found:
                             neighbors_connected = []
