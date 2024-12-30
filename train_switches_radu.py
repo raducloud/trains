@@ -27,6 +27,13 @@ BUTTON_TEXT_COLOR = (0, 0, 0)
 BUTTON_DISABLED_TEXT_COLOR = (100, 100, 100)
 UPSTREAM = "upstream"
 DOWNSTREAM = "downstream"
+class Train_status(Enum):
+    IN_BASE = "in_base"
+    EN_ROUTE = "en_route"
+    STRANDED = "stranded"
+    IN_HOME_STATION = "in_home_station"
+    IN_WRONG_STATION = "in_wrong_station"
+
 ELEMENT_POSSIBLE_COLORS = [pygame.Color('red'),
                            pygame.Color('blue'),
                            pygame.Color('yellow'),
@@ -37,6 +44,10 @@ ELEMENT_POSSIBLE_COLORS = [pygame.Color('red'),
 FPS = 60
 TRAIN_SPAWN_INTERVAL = 5  # seconds
 FONT = None # just to define the giobal variable, initialization cannot be done here as it's a bit complicated
+
+class Utils:
+    def get_opposite_end(end:str)->str:
+        return {'L':'R', 'R':'L', 'U':'D', 'D':'U', None:None}[end]
 
 # Non-playable elements:
 class Button:
@@ -77,13 +88,33 @@ class Map_element:
     def __init__(self, x, y, end1:str=None, end2:str=None, previous_segment=None, next_segment=None, color=pygame.Color('white'), size=ELEMENT_SIZE):
         self.x = x
         self.y = y
-        self.end1=end1
-        self.end2=end2
+        # Take care for end1 and previous_segment to be pointing towards the same neighbor, same for end2 and next_segment. This is used in logic.
+        self._end1=end1
+        self._end2=end2
         self.previous_segment = previous_segment
         self.next_segment = next_segment
         self.size = size
         self.color = color
 
+    # The end1 and end2 attributes are implemented as properties in order to add some auto-rearanging logic of the element in some cases. 
+    @property
+    def end1(self): return self._end1
+    @property
+    def end2(self): return self._end2
+    @end1.setter
+    def end1(self, value): 
+        self._end1 = value
+        # if the segment has curled (because of connecting to a reverse-placed unconnected neighbor), straighten it:
+        # if self._end2 == self._end1:
+        #     self._end2 = Utils.get_opposite_end(self._end1)
+        
+    @end2.setter
+    def end2(self, value): 
+        self._end2 = value
+        # if the segment has curled (because of connecting to a reverse-placed unconnected neighbor), straighten it:
+        # if self._end1 == self._end2:
+        #     self._end1 = Utils.get_opposite_end(self._end2)
+    
     def draw(self, screen):
        pass # abstract function
 
@@ -114,6 +145,11 @@ class Base_station(Map_element): # a black square - like a tunnel hole from whic
 
 class Train(Map_element):
     
+    def __init___(self, x, y, color, current_tile:Map_element):
+        super().__init__(self, x=x, y=y, color=color)
+        self.status = Train_status.IN_BASE
+        self.current_tile = current_tile
+
     def draw(self, screen):
         pygame.draw.rect(screen, self.color, # Draw main body (rectangle)
                         (self.x - self.size//2,
@@ -144,10 +180,11 @@ class Track_segment(Map_element):
             'D': (self.x, self.y + self.size//2)
         }
         
-        start_point = points_map[self.end1]
-        end_point = points_map[self.end2]
+        start_point = points_map[self._end1]
+        end_point = points_map[self._end2]
         
         pygame.draw.line(screen, self.color, start_point, end_point, 3)  # later we can make a curve instead
+        pygame.draw.circle(screen, pygame.Color("red"), (end_point[0]*0.8+self.x*0.2 , end_point[1]*0.8+self.y*0.2), 5)
 
 class Switch(Track_segment):
     # this has 2 additional attributes, end2_inactive and next_segment_inactive. They are the alternative way the switch can connect if toggled, 
@@ -184,7 +221,7 @@ class Switch(Track_segment):
         # Draw a hollow circle at the center of the switch
         circle_radius = self.size // 3
         pygame.draw.circle(screen, pygame.Color("gray"), (self.x, self.y), circle_radius)
-
+        pygame.draw.circle(screen, pygame.Color("yellow"), (points_map[self.end2][0]*0.8+self.x*0.2 , points_map[self.end2][1]*0.8+self.y*0.2), 5)
 
 class Game: # Game mechanics, will have only 1 instance
 
@@ -214,9 +251,6 @@ class Game: # Game mechanics, will have only 1 instance
         self.start_button = Button(WINDOW_WIDTH - BUTTON_MARGIN - BUTTON_WIDTH, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Start")
         self.buttons = [self.base_station_button, self.station_button, self.track_button, self.switch_button, self.start_button]
    
-    def get_opposite_end(self, end:str)->str:
-        return {'L':'R', 'R':'L', 'U':'D', 'D':'U', None:None}[end]
-    
     def get_neighbor(self, map_tile_x:int, map_tile_y:int, direction:str, exclude:list=[]) -> Tuple[str, Map_element]:
          # Returns the first unconnected neighbor element found and its relative position in format l/R/U/D.
          # It is useful during laying track/switch chains, for connecting0
@@ -271,7 +305,8 @@ class Game: # Game mechanics, will have only 1 instance
                     # further custom game actions besides the generic ones in button's handle_event:
                     match button:
                         case self.start_button:
-                            None
+                            if self.base_station and len(self.stations)>0:
+                                train = Train(self.base)
 
             # handle clicks on map area:
             if event.type == pygame.MOUSEBUTTONDOWN:
@@ -333,13 +368,13 @@ class Game: # Game mechanics, will have only 1 instance
                                 neighbor_relative_position, neighbor = neighbor_info
                                 if neighbor.next_segment is None:
                                     neighbor.next_segment = new_switch
-                                    neighbor.end2 = self.get_opposite_end(neighbor_relative_position)
+                                    neighbor.end2 = Utils.get_opposite_end(neighbor_relative_position)
                                     new_switch.end1 = neighbor_relative_position
                                     new_switch.previous_segment = neighbor
                                 # if neighbor's next_segment was already connected but that neighbor is a Switch, also consider checking if its secondary "next_segment_inactive" is unconnected:
                                 elif isinstance(neighbor, Switch) and neighbor.next_segment_inactive is None:
                                     neighbor.next_segment_inactive = new_switch
-                                    neighbor.end2_inactive = self.get_opposite_end(neighbor_relative_position)
+                                    neighbor.end2_inactive = Utils.get_opposite_end(neighbor_relative_position)
                                     new_switch.end1 = neighbor_relative_position
                                     new_switch.previous_segment = neighbor
                                 neighbors_connected.append(neighbor)
@@ -356,21 +391,21 @@ class Game: # Game mechanics, will have only 1 instance
                             if neighbor_info:
                                 neighbor_relative_position, neighbor = neighbor_info
                                 neighbor.previous_segment = new_switch
-                                neighbor.end1 = self.get_opposite_end(neighbor_relative_position)
+                                neighbor.end1 = Utils.get_opposite_end(neighbor_relative_position)
                                 new_switch.end2 = neighbor_relative_position
                                 new_switch.next_segment = neighbor
                                 neighbors_connected.append(neighbor)
                             else:
                                 new_switch.end2 = 'R' # default
-                            # Now the same but for the new switch's next_segment_inactive, maybe we find a connection for it too:
-                            neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, DOWNSTREAM, exclude=neighbors_connected) 
-                            if neighbor_info:
-                                neighbor_relative_position, neighbor = neighbor_info
-                                neighbor.previous_segment = new_switch
-                                neighbor.end1 = self.get_opposite_end(neighbor_relative_position)
-                                new_switch.end2_inactive = neighbor_relative_position
-                                new_switch.next_segment_inactive = neighbor
-                                neighbors_connected.append(neighbor)
+                        # Now the same but for the new switch's next_segment_inactive, maybe we find a connection for it too:
+                        neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, DOWNSTREAM, exclude=neighbors_connected) 
+                        if neighbor_info:
+                            neighbor_relative_position, neighbor = neighbor_info
+                            neighbor.previous_segment = new_switch
+                            neighbor.end1 = Utils.get_opposite_end(neighbor_relative_position)
+                            new_switch.end2_inactive = neighbor_relative_position
+                            new_switch.next_segment_inactive = neighbor
+                            neighbors_connected.append(neighbor)
                         
                         # If either end is unconnected, chose some default orientations for end1/2/2_inactive: 
                         all_ends_desc = {'end1', 'end2', 'end2_inactive'}
@@ -418,13 +453,13 @@ class Game: # Game mechanics, will have only 1 instance
                                 neighbor_relative_position, neighbor = neighbor_info
                                 if neighbor.next_segment is None:
                                     neighbor.next_segment = current_track_segment
-                                    neighbor.end2 = self.get_opposite_end(neighbor_relative_position)
+                                    neighbor.end2 = Utils.get_opposite_end(neighbor_relative_position)
                                     current_track_segment.end1 = neighbor_relative_position
                                     current_track_segment.previous_segment = neighbor
                                 # if the neighbor is a Switch, also consider the special "next_segment_inactive" and "end2_inactive" connections:
                                 elif isinstance(neighbor, Switch) and neighbor.next_segment_inactive is None:
                                     neighbor.next_segment_inactive = current_track_segment
-                                    neighbor.end2_inactive = self.get_opposite_end(neighbor_relative_position)
+                                    neighbor.end2_inactive = Utils.get_opposite_end(neighbor_relative_position)
                                     current_track_segment.end1 = neighbor_relative_position
                                     current_track_segment.previous_segment = neighbor
                                 neighbors_connected.append(neighbor)
@@ -436,7 +471,7 @@ class Game: # Game mechanics, will have only 1 instance
                             if neighbor_info:
                                 neighbor_relative_position, neighbor = neighbor_info
                                 neighbor.previous_segment = current_track_segment
-                                neighbor.end1 = self.get_opposite_end(neighbor_relative_position)
+                                neighbor.end1 = Utils.get_opposite_end(neighbor_relative_position)
                                 current_track_segment.end2 = neighbor_relative_position
                                 current_track_segment.next_segment = neighbor
                                 neighbors_connected.append(neighbor)
