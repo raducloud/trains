@@ -14,11 +14,11 @@ from map_elements import *
 #     each switch having one fixed end and one mobile end, the mobile end can be switched between 2 positions by the user click/touch.
 # If the player manages to direct a train to the station with the same color as the train, they receieve a point.
 
-class GameState(Enum):
+class Game_state(Enum):
     SETUP = auto()
-    PLAYING = auto()
+    RUNNING = auto()
     PAUSED = auto()
-    GAME_OVER = auto()
+    OVER = auto()
 
 class Game: # Game mechanics, will have only 1 instance
 
@@ -29,10 +29,16 @@ class Game: # Game mechanics, will have only 1 instance
         self.clock = pygame.time.Clock()
 
         # map-related:
-        self.base_station = Base_station(0,0) # however we don't put in map_elements here in init; so it will not be part of the map till the user places it
-        self.stations = []
-        self.base_station_tile_position = (-1,-1) # -1 means "doesn't exist"
         self.map_elements = [[None for x in range(MAP_WIDTH)] for y in range(MAP_HEIGHT)]
+        self.base_station = None
+        self.base_station_tile_position = (-1,-1) # -1 means "doesn't exist"
+        self.stations = []
+        self.trains = []
+        self.colors = [] # all colors used after all stations have been placed
+        # map state:
+        self.trains_en_route = 0
+        self.trains_at_destination = 0
+        self.time_since_last_train_spawn = -1
 
         # tracking track/switch placement:
         self.is_dragging_track = False
@@ -46,6 +52,7 @@ class Game: # Game mechanics, will have only 1 instance
         self.clicked_element = None
 
         # Others:
+        # elements:
         self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
         toolbar_y = MAP_HEIGHT * ELEMENT_SIZE + 10
         self.base_station_button = ToggleButton(BUTTON_MARGIN, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Base")
@@ -53,8 +60,11 @@ class Game: # Game mechanics, will have only 1 instance
         self.track_button = ToggleButton(BUTTON_MARGIN * 3 + BUTTON_WIDTH * 2, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Track")
         self.switch_button = ToggleButton(BUTTON_MARGIN * 4 + BUTTON_WIDTH * 3, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Switch")
         self.start_button = Button(WINDOW_WIDTH - BUTTON_MARGIN - BUTTON_WIDTH, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Start")
-        self.buttons = [self.base_station_button, self.station_button, self.track_button, self.switch_button, self.start_button]
-   
+        self.palette_buttons = [self.base_station_button, self.station_button, self.track_button, self.switch_button]
+        self.control_buttons = [self.start_button]
+        #state:
+        self.game_state = Game_state.SETUP
+
     def get_neighbor(self, map_tile_x:int, map_tile_y:int, direction:str, exclude:list=[]) -> Tuple[str, Map_element]:
          # Returns the first unconnected neighbor element found and its relative position in format l/R/U/D.
          # It is useful during laying track/switch chains, for connecting0
@@ -94,7 +104,7 @@ class Game: # Game mechanics, will have only 1 instance
         else: raise ValueError("get_neighbor expects direction='{UPSTREAM}'/'{DOWNSTREAM}', but received '{direction}'") 
         return None # nothing found
 
-    def _handler_click_place_track(self):
+    def handler_click_place_track(self):
 
         x, y = pygame.mouse.get_pos()
         if x <= MAP_WIDTH*ELEMENT_SIZE and y <= MAP_HEIGHT*ELEMENT_SIZE:
@@ -145,7 +155,7 @@ class Game: # Game mechanics, will have only 1 instance
                 #prepare for next iteration:
                 self.previous_track_tile_position = current_tile                            
     
-    def _handle_click_place_switch(self):
+    def handle_click_place_switch(self):
         new_switch = Switch(self.map_x, self.map_y)
         
         # Connect the new_switch:
@@ -222,7 +232,7 @@ class Game: # Game mechanics, will have only 1 instance
         self.map_elements[self.current_tile_x][self.current_tile_y] = new_switch
 
 
-    def _handle_drag_track(self):
+    def handle_drag_track(self):
         x, y = pygame.mouse.get_pos()
         if x <= MAP_WIDTH*ELEMENT_SIZE and y <= MAP_HEIGHT*ELEMENT_SIZE:
             current_tile = ((x-1)//ELEMENT_SIZE, (y-1)//ELEMENT_SIZE)
@@ -271,17 +281,23 @@ class Game: # Game mechanics, will have only 1 instance
                 return False
     
             #handle clicks on buttons:
-            for button in self.buttons:
+            for button in self.palette_buttons:
                 if button.handle_event(event): # if button was pressed:
                      # pop all other buttons (they might be toggle buttons)
-                    for other_button in self.buttons:
+                    for other_button in self.palette_buttons:
                         if other_button!=button:
                             other_button.is_selected = False
-                    # further custom game actions besides the generic ones in button's handle_event:
-                    match button:
-                        case self.start_button:
-                            if self.base_station and len(self.stations)>0:
-                                train = Train(self.base)
+            if self.start_button.handle_event(event) and self.game_state == Game_state.SETUP:
+                for button in self.palette_buttons: button.is_selected = False
+                if not(self.base_station):
+                    Tk().wm_withdraw() 
+                    messagebox.showinfo('Info',"Place the base station before starting the game.")
+                elif len(self.stations) == 0:
+                    Tk().wm_withdraw() 
+                    messagebox.showinfo('Info',"Place at least one destination station before starting the game.")
+                else:
+                    self.game_state == Game_state.RUNNING  # signal to run_app that it needs to call update_map
+                
 
             # handle clicks on map area:
             if event.type == pygame.MOUSEBUTTONDOWN:
@@ -294,8 +310,7 @@ class Game: # Game mechanics, will have only 1 instance
                     self.map_y = (y-1)//ELEMENT_SIZE*ELEMENT_SIZE+ELEMENT_SIZE//2
                     self.clicked_element = self.map_elements[self.current_tile_x][self.current_tile_y]
 
-                    if (self.station_button.is_selected 
-                        and self.clicked_element is None):
+                    if (self.game_state == Game_state.SETUP and self.station_button.is_selected and self.clicked_element is None):
                         
                         new_color = random.choice([color for color in ELEMENT_POSSIBLE_COLORS if color not in [station.color for station in self.stations]]) # chose a color not previously used
                         new_station = Station(x=self.map_x,y=self.map_y,color=new_color)
@@ -307,7 +322,7 @@ class Game: # Game mechanics, will have only 1 instance
                             self.station_button.is_selected = False
                         self.map_elements[self.current_tile_x][self.current_tile_y]=new_station
 
-                    if (self.base_station_button.is_selected
+                    if (self.game_state == Game_state.SETUP and self.base_station_button.is_selected
                         and self.clicked_element is None):
 
                         self.base_station=Base_station(self.map_x,self.map_y)
@@ -316,10 +331,10 @@ class Game: # Game mechanics, will have only 1 instance
                         self.map_elements[self.current_tile_x][self.current_tile_y]=self.base_station
                         self.base_station_tile_position = (self.current_tile_x, self.current_tile_y)
 
-                    if (self.switch_button.is_selected  and
+                    if (self.game_state == Game_state.SETUP and self.switch_button.is_selected and
                            # the switch can be placed on an empty tile or overwrite a track segment
                            (self.clicked_element is None or isinstance(self.clicked_element,Track_segment))):
-                        self._handle_click_place_switch()
+                        self.handle_click_place_switch()
                         
  
 
@@ -327,10 +342,10 @@ class Game: # Game mechanics, will have only 1 instance
             # We have 2 separate events for which we lay segments: 
             #    MOUSEBUTTONDOWN (for the first segment in a chain) - for connecting the segment, we look for neighbors 
             #    MOUSEMOTION (for next segments in a chain) - for connecting the segment, we ignore neighbors and just connect along the line dragged by the user, to avoid possibly unwanted neighbor connections
-            if self.track_button.is_selected:
+            if self.game_state == Game_state.SETUP and self.track_button.is_selected:
                 
                 if event.type == pygame.MOUSEBUTTONDOWN: #first segment in a chain. 
-                    self._handler_click_place_track()
+                    self.handler_click_place_track()
 
                 elif event.type == pygame.MOUSEBUTTONUP:
                     self.is_dragging_track = False
@@ -340,10 +355,13 @@ class Game: # Game mechanics, will have only 1 instance
 
 
                 elif event.type == pygame.MOUSEMOTION and self.is_dragging_track:
-                    self._handle_drag_track()
+                    self.handle_drag_track()
 
         return True
 
+    def update_map():
+        pass
+    
     def draw(self):
         self.screen.fill(BACKGROUND_COLOR)
         
@@ -356,15 +374,16 @@ class Game: # Game mechanics, will have only 1 instance
                 if element is not None:
                     element.draw(self.screen)
         
-        for button in self.buttons: button.draw(self.screen)
-        
+        for button in (self.palette_buttons + self.control_buttons): button.draw(self.screen)
+                
         pygame.display.flip()
 
-    def run(self):
-        running = True
-        while running:
-            running = self.handle_events()
-            # self.update()
+    def run_app(self):
+        app_running = True
+        while app_running:
+            app_running = self.handle_events()
+            if self.game_state == Game_state.RUNNING:
+                self.update_map()
             self.draw()
             self.clock.tick(FPS)
         pygame.quit()
@@ -372,5 +391,4 @@ class Game: # Game mechanics, will have only 1 instance
 
 if __name__ == "__main__":
     game = Game()
-    game.run()
-    
+    game.run_app()
