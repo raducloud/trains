@@ -52,7 +52,7 @@ class Game: # Game mechanics, will have only 1 instance
         self.clicked_element = None
 
         # Others:
-        # elements:
+        # UI elements:
         self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
         toolbar_y = MAP_HEIGHT * ELEMENT_SIZE + 10
         self.base_station_button = ToggleButton(BUTTON_MARGIN, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Base")
@@ -104,7 +104,28 @@ class Game: # Game mechanics, will have only 1 instance
         else: raise ValueError("get_neighbor expects direction='{UPSTREAM}'/'{DOWNSTREAM}', but received '{direction}'") 
         return None # nothing found
 
-    def handler_click_place_track(self):
+    def add_station(self):
+
+        new_color = random.choice([color for color in ELEMENT_POSSIBLE_COLORS if color not in [station.color for station in self.stations]]) # chose a color not previously used
+        new_station = Station(x=self.map_x,y=self.map_y,color=new_color)
+        self.stations.append(new_station)
+        if len(self.stations) == len(ELEMENT_POSSIBLE_COLORS):
+            Tk().wm_withdraw() # draw back the main window for showing pop-up
+            messagebox.showinfo('Info',"This is the last station available")
+            self.station_button.is_enabled = False
+            self.station_button.is_selected = False
+        self.map_elements[self.current_tile_x][self.current_tile_y]=new_station
+    
+    def add_base_station(self):
+
+        self.base_station=Base_station(self.map_x,self.map_y)
+        if (self.base_station_tile_position != (-1,-1)):  # if the base station already existed, clear it from its old place - there can be only one:
+            self.map_elements[self.base_station_tile_position[0]][self.base_station_tile_position[1]] = None
+        self.map_elements[self.current_tile_x][self.current_tile_y]=self.base_station
+        self.base_station_tile_position = (self.current_tile_x, self.current_tile_y)
+        
+
+    def add_track_click(self):
 
         x, y = pygame.mouse.get_pos()
         if x <= MAP_WIDTH*ELEMENT_SIZE and y <= MAP_HEIGHT*ELEMENT_SIZE:
@@ -155,7 +176,7 @@ class Game: # Game mechanics, will have only 1 instance
                 #prepare for next iteration:
                 self.previous_track_tile_position = current_tile                            
     
-    def handle_click_place_switch(self):
+    def add_switch(self):
         new_switch = Switch(self.map_x, self.map_y)
         
         # Connect the new_switch:
@@ -232,7 +253,7 @@ class Game: # Game mechanics, will have only 1 instance
         self.map_elements[self.current_tile_x][self.current_tile_y] = new_switch
 
 
-    def handle_drag_track(self):
+    def add_track_drag(self):
         x, y = pygame.mouse.get_pos()
         if x <= MAP_WIDTH*ELEMENT_SIZE and y <= MAP_HEIGHT*ELEMENT_SIZE:
             current_tile = ((x-1)//ELEMENT_SIZE, (y-1)//ELEMENT_SIZE)
@@ -297,7 +318,7 @@ class Game: # Game mechanics, will have only 1 instance
                     messagebox.showinfo('Info',"Place at least one destination station before starting the game.")
                 else:
                     self.game_state == Game_state.RUNNING  # signal to run_app that it needs to call update_map
-                
+                    for button in self.control_buttons + self.palette_buttons: button.is_enabled = False
 
             # handle clicks on map area:
             if event.type == pygame.MOUSEBUTTONDOWN:
@@ -310,32 +331,17 @@ class Game: # Game mechanics, will have only 1 instance
                     self.map_y = (y-1)//ELEMENT_SIZE*ELEMENT_SIZE+ELEMENT_SIZE//2
                     self.clicked_element = self.map_elements[self.current_tile_x][self.current_tile_y]
 
-                    if (self.game_state == Game_state.SETUP and self.station_button.is_selected and self.clicked_element is None):
-                        
-                        new_color = random.choice([color for color in ELEMENT_POSSIBLE_COLORS if color not in [station.color for station in self.stations]]) # chose a color not previously used
-                        new_station = Station(x=self.map_x,y=self.map_y,color=new_color)
-                        self.stations.append(new_station)
-                        if len(self.stations) == len(ELEMENT_POSSIBLE_COLORS):
-                            Tk().wm_withdraw() # draw back the main window for showing pop-up
-                            messagebox.showinfo('Info',"This is the last station available")
-                            self.station_button.is_enabled = False
-                            self.station_button.is_selected = False
-                        self.map_elements[self.current_tile_x][self.current_tile_y]=new_station
+                    if (self.game_state == Game_state.SETUP):
+                    
+                        if (self.station_button.is_selected and self.clicked_element is None):
+                            self.add_station()
 
-                    if (self.game_state == Game_state.SETUP and self.base_station_button.is_selected
-                        and self.clicked_element is None):
+                        if (self.base_station_button.is_selected and self.clicked_element is None):
+                            self.add_base_station()
 
-                        self.base_station=Base_station(self.map_x,self.map_y)
-                        if (self.base_station_tile_position != (-1,-1)):  # if the base station already existed, clear it from its old place - there can be only one:
-                            self.map_elements[self.base_station_tile_position[0]][self.base_station_tile_position[1]] = None
-                        self.map_elements[self.current_tile_x][self.current_tile_y]=self.base_station
-                        self.base_station_tile_position = (self.current_tile_x, self.current_tile_y)
-
-                    if (self.game_state == Game_state.SETUP and self.switch_button.is_selected and
-                           # the switch can be placed on an empty tile or overwrite a track segment
-                           (self.clicked_element is None or isinstance(self.clicked_element,Track_segment))):
-                        self.handle_click_place_switch()
-                        
+                        if (self.switch_button.is_selected and # the switch can be placed on an empty tile or overwrite a track segment
+                            (self.clicked_element is None or isinstance(self.clicked_element,Track_segment))):
+                            self.add_switch()
  
 
             # Handle track placement. This is a bit different than the above elements placement, as we use a dragging mechanism so we have to consider the mouse movement event too.
@@ -345,7 +351,7 @@ class Game: # Game mechanics, will have only 1 instance
             if self.game_state == Game_state.SETUP and self.track_button.is_selected:
                 
                 if event.type == pygame.MOUSEBUTTONDOWN: #first segment in a chain. 
-                    self.handler_click_place_track()
+                    self.add_track_click()
 
                 elif event.type == pygame.MOUSEBUTTONUP:
                     self.is_dragging_track = False
@@ -355,7 +361,7 @@ class Game: # Game mechanics, will have only 1 instance
 
 
                 elif event.type == pygame.MOUSEMOTION and self.is_dragging_track:
-                    self.handle_drag_track()
+                    self.add_track_drag()
 
         return True
 
