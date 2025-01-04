@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, auto
 import pygame
 
 MAP_WIDTH = 10
@@ -17,12 +17,20 @@ BUTTON_TEXT_COLOR = (0, 0, 0)
 BUTTON_DISABLED_TEXT_COLOR = (100, 100, 100)
 UPSTREAM = "upstream"
 DOWNSTREAM = "downstream"
+
 class Train_status(Enum):
     IN_BASE = "in_base"
     EN_ROUTE = "en_route"
     STRANDED = "stranded"
     IN_HOME_STATION = "in_home_station"
     IN_WRONG_STATION = "in_wrong_station"
+
+class Game_state(Enum):
+    SETUP = auto()
+    RUNNING = auto()
+    PAUSED = auto()
+    OVER = auto()
+
 
 ELEMENT_POSSIBLE_COLORS = [pygame.Color('red'),
                            pygame.Color('blue'),

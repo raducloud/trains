@@ -1,6 +1,6 @@
 import pygame
 from .map_element import Map_element
-from trains_config import *
+from game_config import *
 
 class Base_station(Map_element): # a black square - like a tunnel hole from which all trains appear
     

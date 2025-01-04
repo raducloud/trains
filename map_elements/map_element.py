@@ -1,5 +1,5 @@
 from pygame import Color
-from trains_config import *
+from game_config import *
 
 class Map_element:
 

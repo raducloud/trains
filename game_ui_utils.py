@@ -1,5 +1,6 @@
 import pygame
-from trains_config import *
+from game_config import *
+
 
 class Button:
     def __init__(self, x, y, width, height, text):

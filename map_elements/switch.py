@@ -1,6 +1,6 @@
 import pygame
 from .map_element import Map_element
-from trains_config import *
+from game_config import *
 
 class Switch(Map_element):
     # this has 2 additional attributes, end2_inactive and next_segment_inactive. They are the alternative way the switch can connect if toggled, 

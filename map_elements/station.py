@@ -1,6 +1,6 @@
 import pygame
 from .map_element import Map_element
-from trains_config import *
+from game_config import *
 
 class Station(Map_element):
     
