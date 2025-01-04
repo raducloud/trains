@@ -72,7 +72,7 @@ class Game:
                 if not(self.map.base_station): self.show_message("Place the base station before starting the game.")
                 elif len(self.map.stations) == 0: self.show_message("Place at least one destination station before starting the game.")
                 else:
-                    self.game_state == Game_state.RUNNING  # signal to run_app that it needs to call update_map
+                    self.game_state = Game_state.RUNNING  # signal to run_app that it needs to call update_map
                     for button in self.control_buttons + self.palette_buttons: 
                         button.is_enabled = False
                         button.is_selected = False
@@ -103,6 +103,10 @@ class Game:
                         if (self.switch_button.is_selected and # the switch can be placed on an empty tile or overwrite a track segment
                             (self.map.clicked_element is None or isinstance(self.map.clicked_element,Track_segment))):
                             self.map.add_switch()
+
+                    elif self.game_state == Game_state.RUNNING:
+                        self.map.clicked_element.toggle()
+
                 return True
  
 
@@ -124,7 +128,7 @@ class Game:
 
         return True
 
-    def update_map():
+    def update_map(self):
         pass
     
     def show_message(self, message):
