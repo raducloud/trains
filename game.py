@@ -103,7 +103,7 @@ class Game:
                             (self.map.clicked_element is None or isinstance(self.map.clicked_element,Track_segment))):
                             self.map.add_switch()
 
-                    elif self.game_state == Game_state.RUNNING:
+                    elif self.game_state == Game_state.RUNNING and isinstance(self.map.clicked_element, Switch):
                         self.map.clicked_element.toggle()
 
                 return True
