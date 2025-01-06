@@ -1,22 +1,46 @@
 from enum import Enum, auto
 import pygame
+import platform
+import sys
 
+if sys.platform.startswith('win'):
+    print('Running on Windows')
+    GAME_SPACE_SCALE_FACTOR = 1
+elif platform.system() == 'Darwin':  # For iOS/macOS
+    print('Running on iOS/macOS')
+    GAME_SPACE_SCALE_FACTOR = 2
+elif platform.system() == 'Linux':   # For Android/Linux
+    print('Running on Android/Linux')
+    GAME_SPACE_SCALE_FACTOR = 2
+
+FPS = 60
+TRAIN_SPAWN_INTERVAL = 5  # seconds
 MAP_WIDTH = 10
 MAP_HEIGHT = 10
-ELEMENT_SIZE = 50
-BUTTON_WIDTH = 80
-BUTTON_HEIGHT = 40
-BUTTON_MARGIN = 10
-WINDOW_WIDTH = MAP_WIDTH * ELEMENT_SIZE
-WINDOW_HEIGHT = MAP_HEIGHT * ELEMENT_SIZE+BUTTON_HEIGHT + BUTTON_MARGIN * 2
+ELEMENT_SIZE = int(50 * GAME_SPACE_SCALE_FACTOR)
+BUTTON_WIDTH = int(80 * GAME_SPACE_SCALE_FACTOR)
+BUTTON_HEIGHT = int(40 * GAME_SPACE_SCALE_FACTOR)
+BUTTON_MARGIN = int(10 * GAME_SPACE_SCALE_FACTOR)
+WINDOW_WIDTH = MAP_WIDTH * ELEMENT_SIZE 
+WINDOW_HEIGHT = MAP_HEIGHT * ELEMENT_SIZE + BUTTON_HEIGHT + BUTTON_MARGIN * 2
+SMALL_TEXT_SIZE = int(20 * GAME_SPACE_SCALE_FACTOR)
 BACKGROUND_COLOR = (34, 89, 34)
 BUTTON_COLOR = (200, 200, 200)
 BUTTON_HOVER_COLOR = (180, 180, 180)
 BUTTON_SELECTED_COLOR = (150, 150, 150)
 BUTTON_TEXT_COLOR = (0, 0, 0)
 BUTTON_DISABLED_TEXT_COLOR = (100, 100, 100)
+TRAIN_SPEED = ELEMENT_SIZE // FPS    # ELEMENT_SIZE / FPS would result in 1 element per second
 UPSTREAM = "upstream"
 DOWNSTREAM = "downstream"
+
+ELEMENT_POSSIBLE_COLORS = [pygame.Color('red'),
+                           pygame.Color('blue'),
+                           pygame.Color('yellow'),
+                           pygame.Color('green'),
+                           pygame.Color('purple'),
+                           pygame.Color('orange'),
+                           pygame.Color('cyan')]
 
 class Train_status(Enum):
     IN_BASE = "in_base"
@@ -31,14 +55,4 @@ class Game_state(Enum):
     PAUSED = auto()
     OVER = auto()
 
-
-ELEMENT_POSSIBLE_COLORS = [pygame.Color('red'),
-                           pygame.Color('blue'),
-                           pygame.Color('yellow'),
-                           pygame.Color('green'),
-                           pygame.Color('purple'),
-                           pygame.Color('orange'),
-                           pygame.Color('cyan')]
-FPS = 60
-TRAIN_SPAWN_INTERVAL = 5  # seconds
 

@@ -1,4 +1,3 @@
-import random
 import pygame
 from enum import Enum, auto
 from typing import List, Tuple, Dict
@@ -129,19 +128,20 @@ class Game:
         return True
 
     def update_map(self):
-        pass
+        for train in self.trains: train.advance()
+            
     
     def show_message(self, message):
         self.popup_active = True
         self.popup_message = message
     
     def draw_popup(self):
-        popup_rect = pygame.Rect(0, WINDOW_HEIGHT//2, WINDOW_WIDTH, 100)
+        popup_rect = pygame.Rect(0, WINDOW_HEIGHT//2, WINDOW_WIDTH, int(100 * GAME_SPACE_SCALE_FACTOR))
         pygame.draw.rect(self.screen, (200, 200, 200), popup_rect)  # Light gray background
-
-        font = pygame.font.Font(None, 24)
-        text = font.render(self.popup_message, True, (0, 0, 0))
-        self.screen.blit(text, (popup_rect.x + 3, popup_rect.y + 20))
+        font_popup_size = int(24 * GAME_SPACE_SCALE_FACTOR)
+        font_popup = pygame.font.Font(None, font_popup_size)
+        text = font_popup.render(self.popup_message, True, (0, 0, 0))
+        self.screen.blit(text, (popup_rect.x + int(4 * GAME_SPACE_SCALE_FACTOR), popup_rect.y + int(20 * GAME_SPACE_SCALE_FACTOR) ))
         
     
     def draw(self):

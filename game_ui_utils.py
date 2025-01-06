@@ -9,7 +9,7 @@ class Button:
         self.is_hovered = False
         self.is_selected = False
         self.is_enabled = True
-        self.font = pygame.font.Font(None, 20)
+        self.font = pygame.font.Font(None, SMALL_TEXT_SIZE)
 
     def draw(self, surface):
         color = BUTTON_SELECTED_COLOR if self.is_selected else BUTTON_HOVER_COLOR if self.is_hovered else BUTTON_COLOR
