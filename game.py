@@ -44,6 +44,7 @@ class Game:
         self.control_buttons = [self.start_button]
         self.popup_active = False
         self.popup_message = None
+        self.FPS = FPS_SETUP
         #state:
         self.game_state = Game_state.SETUP
 
@@ -68,13 +69,7 @@ class Game:
                     return True
 
             if self.start_button.handle_event(event) and self.game_state == Game_state.SETUP:
-                if not(self.map.base_station): self.show_message("Place the base station before starting the game.")
-                elif len(self.map.stations) == 0: self.show_message("Place at least one destination station before starting the game.")
-                else:
-                    self.game_state = Game_state.RUNNING  # signal to run_app that it needs to call update_map
-                    for button in self.control_buttons + self.palette_buttons: 
-                        button.is_enabled = False
-                        button.is_selected = False
+                self.start_game()
                 return True
 
             # handle clicks on map area:
@@ -127,6 +122,24 @@ class Game:
 
         return True
 
+    def start_game(self):
+        if not(self.map.base_station): self.show_message("Place the base station before starting the game.")
+        elif len(self.map.stations) == 0: self.show_message("Place at least one destination station before starting the game.")
+        else:
+            self.game_state = Game_state.RUNNING  # signal to run_app that it needs to call update_map
+            for button in self.control_buttons + self.palette_buttons: 
+                button.is_enabled = False
+                button.is_selected = False
+        self.trains.append(Train(self.map.base_station.x, 
+                                 self.map.base_station.y, 
+                                 color = random.choice([station.color for station in self.map.stations]),
+                                 current_tile = self.map.base_station,
+                                 train_status = Train_status.EN_ROUTE
+                                 ))
+        # During setup we might need a different FPS (to allow quick response while dragging track) than at train runtime (where 1 pixel / frame might be too fast if big FPS)
+        self.FPS = FPS_RUN
+        
+    
     def update_map(self):
         for train in self.trains: train.advance()
             
@@ -156,6 +169,10 @@ class Game:
                 if element is not None:
                     element.draw(self.screen)
         
+        # trains must be drawn after the other elemens, as they overlap:
+        for train in self.trains: 
+            if train.train_status == Train_status.EN_ROUTE: train.draw(self.screen)
+        
         for button in (self.palette_buttons + self.control_buttons): button.draw(self.screen)
 
         if self.popup_active: self.draw_popup()
@@ -169,7 +186,7 @@ class Game:
             if self.game_state == Game_state.RUNNING:
                 self.update_map()
             self.draw()
-            self.clock.tick(FPS)
+            self.clock.tick(self.FPS)
         pygame.quit()
 
 

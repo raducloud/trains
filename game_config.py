@@ -13,7 +13,8 @@ elif platform.system() == 'Linux':   # For Android/Linux
     print('Running on Android/Linux')
     GAME_SPACE_SCALE_FACTOR = 2
 
-FPS = 60
+FPS_SETUP = 60
+FPS_RUN = 20
 TRAIN_SPAWN_INTERVAL = 5  # seconds
 MAP_WIDTH = 10
 MAP_HEIGHT = 10
@@ -30,7 +31,7 @@ BUTTON_HOVER_COLOR = (180, 180, 180)
 BUTTON_SELECTED_COLOR = (150, 150, 150)
 BUTTON_TEXT_COLOR = (0, 0, 0)
 BUTTON_DISABLED_TEXT_COLOR = (100, 100, 100)
-TRAIN_SPEED = ELEMENT_SIZE // FPS    # ELEMENT_SIZE / FPS would result in 1 element per second
+TRAIN_SPEED = 1    # Only integers. ELEMENT_SIZE // FPS_RUN would result in 1 element per second
 UPSTREAM = "upstream"
 DOWNSTREAM = "downstream"
 

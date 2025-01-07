@@ -4,18 +4,18 @@ from game_config import *
 
 class Train(Map_element):
     
-    def __init___(self, x, y, color, current_tile:Map_element):
-        super().__init__(self, x=x, y=y, color=color)
-        self.status = Train_status.IN_BASE
+    def __init__(self, x, y, color, current_tile:Map_element, train_status = Train_status.IN_BASE):
+        super().__init__(x=x, y=y, color=color)
+        self.train_status = train_status
         self.current_tile = current_tile
         self.previous_tile = None
 
-    def advance():
+    def advance(self):
         # {'L':'R', 'R':'L', 'U':'D', 'D':'U', None:None}[self.current_tile.]
-        pass
+        # self.x = self.x + self.current_tile.end2_coordinate
 
-    def draw_simple(self,screen):
-        pygame.draw.circle(screen, self.color, self.x-self.size//2, self.x-self.size//3)
+    def draw_simple(self, screen):
+        pygame.draw.circle(screen, self.color, (self.x, self.y), self.size//3)
         
     
     def draw_complex(self, screen):
@@ -38,7 +38,6 @@ class Train(Map_element):
                           wheel_radius)
         
 
-    def draw(self,screen):
-        if self.status == Train_status.EN_ROUTE:
-            draw_simple(self,screen)
+    def draw(self, screen):
+        self.draw_simple(screen)
     
