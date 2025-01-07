@@ -12,7 +12,7 @@ class Train(Map_element):
 
     def advance(self):
         # {'L':'R', 'R':'L', 'U':'D', 'D':'U', None:None}[self.current_tile.]
-        # self.x = self.x + self.current_tile.end2_coordinate
+        self.x +=   self.x + self.current_tile.end2_coordinate
 
     def draw_simple(self, screen):
         pygame.draw.circle(screen, self.color, (self.x, self.y), self.size//3)

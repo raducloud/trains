@@ -12,4 +12,5 @@ class Base_station(Map_element): # a black square - like a tunnel hole from whic
                         (self.x - self.size//2, 
                          self.y - self.size//2,
                          self.size, self.size))
+        super().draw(screen)
 

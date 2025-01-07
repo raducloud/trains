@@ -15,4 +15,5 @@ class Station(Map_element):
                  (self.x + self.size//2 * scale_factor, self.y - self.size//2 * scale_factor),
                  (self.x, self.y - self.size * scale_factor)]
         pygame.draw.polygon(screen, self.color, points)
+        super().draw(screen)
 
