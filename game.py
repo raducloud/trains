@@ -34,7 +34,7 @@ class Game:
         # Others:
         # UI elements:
         self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-        toolbar_y = MAP_HEIGHT * ELEMENT_SIZE + 10
+        toolbar_y = MAP_HEIGHT * ELEMENT_SIZE + SCOREBOARD_HEIGHT + BUTTON_MARGIN
         self.base_station_button = ToggleButton(BUTTON_MARGIN, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Base")
         self.station_button = ToggleButton(BUTTON_MARGIN * 2 + BUTTON_WIDTH, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Station")
         self.track_button = ToggleButton(BUTTON_MARGIN * 3 + BUTTON_WIDTH * 2, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Track")
@@ -45,8 +45,11 @@ class Game:
         self.popup_active = False
         self.popup_message = None
         self.FPS = FPS_SETUP
+        self.font_score = pygame.font.Font(None, LARGE_TEXT_SIZE)
         #state:
         self.game_state = Game_state.SETUP
+        self.score_ok = 0
+        self.score_nok = 0
 
 
     def handle_events(self):
@@ -143,7 +146,10 @@ class Game:
     def update_map(self):
         for train in self.trains: 
             if train.train_status in (Train_status.IN_BASE, Train_status.EN_ROUTE):
-                train.advance()
+                # advance and then count resulted points, if any
+                match train.advance():
+                    case  1: self.score_ok  += 1
+                    case -1: self.score_nok += 1
             
     
     def show_message(self, message):
@@ -171,7 +177,14 @@ class Game:
                 if element is not None:
                     element.draw(self.screen)
         
-        # trains must be drawn after the other elemens, as they overlap:
+        # scoreboard:
+        if self.game_state != Game_state.SETUP:
+            text_surface = self.font_score.render(str(self.score_ok), True, pygame.Color('white'))
+            self.screen.blit(text_surface, (WINDOW_WIDTH // 2 , MAP_HEIGHT * ELEMENT_SIZE + SCOREBOARD_HEIGHT//5))
+
+
+
+        # trains must be drawn after the other map elemens, as they overlap:
         for train in self.trains: 
             if train.train_status in (Train_status.EN_ROUTE, Train_status.STRANDED): 
                 train.draw(self.screen)
