@@ -36,7 +36,7 @@ class Train(Map_element):
         dx = self.current_tile.versor_x * TRAIN_SPEED
         dy = self.current_tile.versor_y * TRAIN_SPEED
 
-        if (dx > 0 or dy > 0):
+        if (abs(dx) > 0 or abs(dy) > 0):
             # check if a new move would lead us outside the tile:
             if (abs(self._x_float - self.current_tile.end2_coordinates[0]) >= abs(dx)  and 
                 abs(self._y_float - self.current_tile.end2_coordinates[1]) >= abs(dy)):
