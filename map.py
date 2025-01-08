@@ -71,6 +71,26 @@ class Map:
         else: raise ValueError("get_neighbor expects direction='{UPSTREAM}'/'{DOWNSTREAM}', but received '{direction}'") 
         return None # nothing found
 
+    # calls get neighbor and, if found, connects it downstream
+    def scan_connect_downstream(self, element_to_be_connected, current_tile_x, current_tile_y, excluded_neighbors=[], is_inactive_end=False):
+
+        neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, DOWNSTREAM, exclude=excluded_neighbors) 
+        if neighbor_info:
+            neighbor_relative_position, neighbor = neighbor_info
+            neighbor.previous_segment = element_to_be_connected
+            neighbor.end1 = Utils.get_opposite_end(neighbor_relative_position)
+            if is_inactive_end:
+                element_to_be_connected.end2_inactive = neighbor_relative_position
+                element_to_be_connected.next_segment_inactive = neighbor
+            else:
+                element_to_be_connected.end2 = neighbor_relative_position
+                element_to_be_connected.next_segment = neighbor
+            return neighbor
+        else: # no downstream neighbors found
+            element_to_be_connected.end2='R' #default
+            return None
+
+
     def add_station(self):
 
         new_color = random.choice([color for color in ELEMENT_POSSIBLE_COLORS if color not in [station.color for station in self.stations]]) # chose a color not previously used
@@ -121,16 +141,8 @@ class Map:
                     current_track_segment.end1 = 'L' # default
                 
                 # same for downstram:
-                neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, DOWNSTREAM, exclude=neighbors_connected) 
-                if neighbor_info:
-                    neighbor_relative_position, neighbor = neighbor_info
-                    neighbor.previous_segment = current_track_segment
-                    neighbor.end1 = Utils.get_opposite_end(neighbor_relative_position)
-                    current_track_segment.end2 = neighbor_relative_position
-                    current_track_segment.next_segment = neighbor
-                    neighbors_connected.append(neighbor)
-                else: # no downstream neighbors
-                    current_track_segment.end2='R' #default
+                downstream_neighbor = self.scan_connect_downstream(element_to_be_connected=current_track_segment, current_tile_x=current_tile_x, current_tile_y=current_tile_y, excluded_neighbors=neighbors_connected)
+                # if downstream_neighbor: neighbors_connected.append(neighbor)
 
                 # add the track segment to the map and current temp chain:
                 self.map_elements[current_tile_x][current_tile_y] = current_track_segment

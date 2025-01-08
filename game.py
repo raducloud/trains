@@ -118,6 +118,11 @@ class Game:
                     return True
 
                 if event.type == pygame.MOUSEBUTTONUP:
+                    #finalize by searching a downstraem connection for the last placed segment during this mouse drag:
+                    if len(self.map.current_track_chain) > 0:
+                        self.map.scan_connect_downstream(element_to_be_connected=self.map.current_track_chain[-1],
+                                                         current_tile_x=self.map.previous_track_tile_position[0],
+                                                         current_tile_y=self.map.previous_track_tile_position[1])
                     self.map.is_dragging_track = False
                     self.map.previous_track_tile_position = None
                     self.map.current_track_chain = []
