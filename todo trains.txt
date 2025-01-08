@@ -1,0 +1,8 @@
+For the speed to not increase on diagonal segments, because of rounding x = x+0.7, can implement a float x_debt and y_debt attribute so that at next increment we consider the rounding debt.
+
+Run on Web:
+
+https://pypi.org/project/pygbag/
+https://www.reddit.com/r/Python/comments/x1iac9/running_pygame_in_the_browser_with_pygbag/
+https://chatgpt.com/share/677bd845-d150-800f-902e-8f88cab45fc2
+

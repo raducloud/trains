@@ -130,14 +130,14 @@ class Game:
             for button in self.control_buttons + self.palette_buttons: 
                 button.is_enabled = False
                 button.is_selected = False
-        self.trains.append(Train(self.map.base_station.x, 
-                                 self.map.base_station.y, 
-                                 color = random.choice([station.color for station in self.map.stations]),
-                                 current_tile = self.map.base_station,
-                                 train_status = Train_status.EN_ROUTE
-                                 ))
-        # During setup we might need a different FPS (to allow quick response while dragging track) than at train runtime (where 1 pixel / frame might be too fast if big FPS)
-        self.FPS = FPS_RUN
+            self.trains.append(Train(self.map.base_station.x, 
+                                    self.map.base_station.y, 
+                                    color = random.choice([station.color for station in self.map.stations]),
+                                    current_tile = self.map.base_station,
+                                    train_status = Train_status.EN_ROUTE
+                                    ))
+            # During setup we might need a different FPS (to allow quick response while dragging track) than at train runtime (where 1 pixel / frame might be too fast if big FPS)
+            self.FPS = FPS_RUN
         
     
     def update_map(self):
@@ -171,7 +171,8 @@ class Game:
         
         # trains must be drawn after the other elemens, as they overlap:
         for train in self.trains: 
-            if train.train_status == Train_status.EN_ROUTE: train.draw(self.screen)
+            if train.train_status in (Train_status.EN_ROUTE, Train_status.STRANDED): 
+                train.draw(self.screen)
         
         for button in (self.palette_buttons + self.control_buttons): button.draw(self.screen)
 
