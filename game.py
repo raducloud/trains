@@ -141,7 +141,9 @@ class Game:
         
     
     def update_map(self):
-        for train in self.trains: train.advance()
+        for train in self.trains: 
+            if train.train_status in (Train_status.IN_BASE, Train_status.EN_ROUTE):
+                train.advance()
             
     
     def show_message(self, message):

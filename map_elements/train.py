@@ -13,29 +13,31 @@ class Train(Map_element):
         self._y_float = float(y)
         super().__init__(x=x, y=y, color=color)
 
-        @property
-        def x(self): return int(self._x_float)
-        @property
-        def y(self): return int(self._y_float)
+    @property
+    def x(self): 
+        return int(self._x_float)
+    @property
+    def y(self): 
+        return int(self._y_float)
 
-        @x.setter
-        def x(self, value): 
-            self._x_float = float(value)
-            
-        @y.setter
-        def y(self, value): 
-            self._y_float = float(value)
+    @x.setter
+    def x(self, value): 
+        self._x_float = float(value)
+        
+    @y.setter
+    def y(self, value): 
+        self._y_float = float(value)
 
 
     def advance(self):
-        dx = int(self.current_tile.versor_x * TRAIN_SPEED)
-        dy = int(self.current_tile.versor_y * TRAIN_SPEED)
+        dx = self.current_tile.versor_x * TRAIN_SPEED
+        dy = self.current_tile.versor_y * TRAIN_SPEED
 
         # check if a new move would lead us outside the tile:
-        if (abs(self.x - self.current_tile.end2_coordinates[0]) >= abs(dx)  and 
-            abs(self.y - self.current_tile.end2_coordinates[1]) >= abs(dy)):
-            self.x += dx
-            self.y += dy
+        if (abs(self._x_float - self.current_tile.end2_coordinates[0]) >= abs(dx)  and 
+            abs(self._y_float - self.current_tile.end2_coordinates[1]) >= abs(dy)):
+            self._x_float += dx
+            self._y_float += dy
         else: # a new move would lead us outside the tile, so switch to next tile if it exists:
             if self.current_tile.next_segment:
                 self.current_tile = self.current_tile.next_segment
@@ -45,8 +47,8 @@ class Train(Map_element):
                     else:
                         self.train_status = Train_status.IN_WRONG_STATION
                 else: # next segment exists and is not Station, so move at the beginning of it:
-                    self.x = self.current_tile.end1_coordinates[0]
-                    self.y = self.current_tile.end1_coordinates[1]
+                    self._x_float = float(self.current_tile.end1_coordinates[0])
+                    self._y_float = float(self.current_tile.end1_coordinates[1])
             else: # no next segment exists:
                 self.train_status = Train_status.STRANDED
 
@@ -56,10 +58,10 @@ class Train(Map_element):
     
     def draw_complex(self, screen):
         pygame.draw.rect(screen, self.color, # Draw main body (rectangle)
-                        (self.x - self.size//2,
-                         self.y - self.size//4,
-                         self.size,
-                         self.size//2))
+                        (self.x - self.size//2, # left
+                         self.y - self.size//4, # top
+                         self.size, # width
+                         self.size//3)) # height
         pygame.draw.rect(screen, self.color, # Draw cabin (smaller rectangle)
                         (self.x - self.size//2,
                          self.y - self.size//2,
@@ -75,5 +77,5 @@ class Train(Map_element):
         
 
     def draw(self, screen):
-        self.draw_simple(screen)
+        self.draw_complex(screen)
     
