@@ -95,7 +95,7 @@ class Game:
                             self.map.add_base_station()
 
                         if (self.track_button.is_selected and self.map.clicked_element is None):
-                            self.map.add_track_click()
+                            self.map.add_track_by_click()
 
                         if (self.switch_button.is_selected and # the switch can be placed on an empty tile or overwrite a track segment
                             (self.map.clicked_element is None or isinstance(self.map.clicked_element,Track_segment))):
@@ -120,9 +120,10 @@ class Game:
                 if event.type == pygame.MOUSEBUTTONUP:
                     #finalize by searching a downstraem connection for the last placed segment during this mouse drag:
                     if len(self.map.current_track_chain) > 0:
-                        self.map.scan_connect_downstream(element_to_be_connected=self.map.current_track_chain[-1],
-                                                         current_tile_x=self.map.previous_track_tile_position[0],
-                                                         current_tile_y=self.map.previous_track_tile_position[1])
+                        if not self.map.scan_connect_downstream(element_to_be_connected=self.map.current_track_chain[-1],
+                                                                current_tile_x=self.map.previous_track_tile_position[0],
+                                                                current_tile_y=self.map.previous_track_tile_position[1]):
+                            self.map.assign_free_end_defaults(self.map.current_track_chain[-1]) # if no neighbor at the end to connect, just straighten the free end
                     self.map.is_dragging_track = False
                     self.map.previous_track_tile_position = None
                     self.map.current_track_chain = []

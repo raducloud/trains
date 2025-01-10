@@ -6,7 +6,9 @@ class Map_element:
 
     # The parameters end1/end2 ('L'/'R'/'U'/'D' for left/right/up/down) and previous/next_segment references are for elements which can be part of chain (track segments, switches...)
     # end1 and previous_segment are towards "upstream" and end2 and next_segment are towards "downstream", relative to the train movement from the base station.
-    def __init__(self, x, y, end1:str=None, end2:str=None, previous_segment=None, next_segment=None, color=pygame.Color('white'), size=ELEMENT_SIZE):
+    #    end1/2 are used for drawing and so must have values even if the segment is not connected to neighbors.
+    #    We detect that an ending is not connected by checking the prrevious/next_segment attributes for being populated or not.
+    def __init__(self, x, y, end1:str='L', end2:str='R', previous_segment=None, next_segment=None, color=pygame.Color('white'), size=ELEMENT_SIZE):
         self.x = x
         self.y = y
         # Take care for end1 and previous_segment to be pointing towards the same neighbor, same for end2 and next_segment. This is used in logic.

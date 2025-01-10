@@ -71,8 +71,26 @@ class Map:
         else: raise ValueError("get_neighbor expects direction='{UPSTREAM}'/'{DOWNSTREAM}', but received '{direction}'") 
         return None # nothing found
 
+    def scan_connect_upstream(self, element_to_be_connected, current_tile_x, current_tile_y, excluded_neighbors=[]) -> Map_element:
+        neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, UPSTREAM, exclude=excluded_neighbors) 
+        if neighbor_info:
+            neighbor_relative_position, neighbor = neighbor_info
+            if neighbor.next_segment is None:
+                neighbor.next_segment = element_to_be_connected
+                neighbor.end2 = Utils.get_opposite_end(neighbor_relative_position)
+                element_to_be_connected.end1 = neighbor_relative_position
+                element_to_be_connected.previous_segment = neighbor
+            # if the neighbor is a Switch, also consider the special "next_segment_inactive" and "end2_inactive" connections:
+            elif isinstance(neighbor, Switch) and neighbor.next_segment_inactive is None:
+                neighbor.next_segment_inactive = element_to_be_connected
+                neighbor.end2_inactive = Utils.get_opposite_end(neighbor_relative_position)
+                element_to_be_connected.end1 = neighbor_relative_position
+                element_to_be_connected.previous_segment = neighbor
+            return neighbor
+        else: return None # no upstream neighbor found
+
     # calls get neighbor and, if found, connects it downstream
-    def scan_connect_downstream(self, element_to_be_connected, current_tile_x, current_tile_y, excluded_neighbors=[], is_inactive_end=False):
+    def scan_connect_downstream(self, element_to_be_connected, current_tile_x, current_tile_y, excluded_neighbors=[], is_inactive_end=False) -> Map_element:
 
         neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, DOWNSTREAM, exclude=excluded_neighbors) 
         if neighbor_info:
@@ -86,10 +104,31 @@ class Map:
                 element_to_be_connected.end2 = neighbor_relative_position
                 element_to_be_connected.next_segment = neighbor
             return neighbor
-        else: # no downstream neighbors found
-            element_to_be_connected.end2='R' #default
-            return None
+        else: return None # no downstream neighbors found
 
+    def assign_free_end_defaults(self, map_element):
+        # If either end is unconnected, chose some default orientations for end1/2/2_inactive, from the orientations which are not already used by the elemnt's other endings.
+        if isinstance(map_element, Track_segment):  # just assign an opposite end, so straighten the segment:
+            if not map_element.previous_segment: map_element.end1 = Utils.get_opposite_end(map_element.end2)
+            if not map_element.next_segment: map_element.end2 = Utils.get_opposite_end(map_element.end1)
+        if isinstance(map_element, Switch):
+            # We have many end pair combinations for switch.
+            # So, to not do repetitive writing, and as a programming exercise, we dynamically loop through all attributes of the map_element with getattr()
+            all_ends_desc = {'end1', 'end2','end2_inactive'}
+            all_ends_possible_values = {'L','R','U','D'}
+            need_defaults = True
+            while need_defaults:
+                # take first found unconnected end, if any
+                unconnected_end_desc = next((end_desc for end_desc in all_ends_desc if getattr(map_element, end_desc) is None), None)
+                if unconnected_end_desc:
+                    connected_ends = {getattr(map_element, end_desc) for end_desc in all_ends_desc if getattr(map_element, end_desc)}
+                    if len(connected_ends) > 0:
+                        setattr(map_element, unconnected_end_desc, 
+                                next(iter(all_ends_possible_values - connected_ends))) # assigns the first unused orientation found
+                    else: # none of the 3 ends is connected, set a hardcoded default - this will happen a single time in this loop
+                        setattr(map_element, unconnected_end_desc, 'L')
+                else: # all connected, finish:
+                    need_defaults = False
 
     def add_station(self):
 
@@ -107,7 +146,7 @@ class Map:
         self.base_station_tile_position = (self.current_tile_x, self.current_tile_y)
         
 
-    def add_track_click(self):
+    def add_track_by_click(self):
 
         x, y = pygame.mouse.get_pos()
         if x <= MAP_WIDTH*ELEMENT_SIZE and y <= MAP_HEIGHT*ELEMENT_SIZE:
@@ -122,32 +161,17 @@ class Map:
                 
                 # scan for unconnected upstream neigbors if any, and connect the first found:
                 neighbors_connected = []
-                neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, UPSTREAM) 
-                if neighbor_info:
-                    neighbor_relative_position, neighbor = neighbor_info
-                    if neighbor.next_segment is None:
-                        neighbor.next_segment = current_track_segment
-                        neighbor.end2 = Utils.get_opposite_end(neighbor_relative_position)
-                        current_track_segment.end1 = neighbor_relative_position
-                        current_track_segment.previous_segment = neighbor
-                    # if the neighbor is a Switch, also consider the special "next_segment_inactive" and "end2_inactive" connections:
-                    elif isinstance(neighbor, Switch) and neighbor.next_segment_inactive is None:
-                        neighbor.next_segment_inactive = current_track_segment
-                        neighbor.end2_inactive = Utils.get_opposite_end(neighbor_relative_position)
-                        current_track_segment.end1 = neighbor_relative_position
-                        current_track_segment.previous_segment = neighbor
-                    neighbors_connected.append(neighbor)
-                else: # no upstream neighbors
-                    current_track_segment.end1 = 'L' # default
-                
+                upstream_neighbor = self.scan_connect_upstream(element_to_be_connected=current_track_segment, current_tile_x=current_tile_x, current_tile_y=current_tile_y, excluded_neighbors=neighbors_connected)
+                if upstream_neighbor: neighbors_connected.append(upstream_neighbor)
                 # same for downstram:
-                downstream_neighbor = self.scan_connect_downstream(element_to_be_connected=current_track_segment, current_tile_x=current_tile_x, current_tile_y=current_tile_y, excluded_neighbors=neighbors_connected)
-                # if downstream_neighbor: neighbors_connected.append(neighbor)
-
+                self.scan_connect_downstream(element_to_be_connected=current_track_segment, current_tile_x=current_tile_x, current_tile_y=current_tile_y, excluded_neighbors=neighbors_connected)
+                # if any ending is still unconnected, assign free defaults:
+                self.assign_free_end_defaults(current_track_segment)
+                
                 # add the track segment to the map and current temp chain:
                 self.map_elements[current_tile_x][current_tile_y] = current_track_segment
                 self.current_track_chain.append(current_track_segment)
-                #prepare for next iteration:
+                # prepare for mouse dragging, in case it will happen:
                 self.previous_track_tile_position = current_tile                            
     
     def add_switch(self):
@@ -163,22 +187,8 @@ class Map:
             new_switch.previous_segment = self.clicked_element.previous_segment
             neighbors_connected.append(self.clicked_element.previous_segment)
         else: # otherwise, search for any upstream unconnected neighbors:
-            neighbor_info = self.get_neighbor(self.current_tile_x, self.current_tile_y, UPSTREAM, exclude=neighbors_connected) 
-            if neighbor_info:
-                neighbor_relative_position, neighbor = neighbor_info
-                if neighbor.next_segment is None:
-                    neighbor.next_segment = new_switch
-                    neighbor.end2 = Utils.get_opposite_end(neighbor_relative_position)
-                    new_switch.end1 = neighbor_relative_position
-                    new_switch.previous_segment = neighbor
-                # if neighbor's next_segment was already connected but that neighbor is a Switch, also consider checking if its secondary "next_segment_inactive" is unconnected:
-                elif isinstance(neighbor, Switch) and neighbor.next_segment_inactive is None:
-                    neighbor.next_segment_inactive = new_switch
-                    neighbor.end2_inactive = Utils.get_opposite_end(neighbor_relative_position)
-                    new_switch.end1 = neighbor_relative_position
-                    new_switch.previous_segment = neighbor
-                neighbors_connected.append(neighbor)
-                # no need for "else:", because since get_neighbor returned something, for sure that something has an unconnected end.
+            upstream_neighbor = self.scan_connect_upstream(new_switch, self.current_tile_x, self.current_tile_y, excluded_neighbors=neighbors_connected)
+            if upstream_neighbor: neighbors_connected.append(upstream_neighbor)
             
         # Now the same for downstream. First search if our new element was placed on an existing chain:
         if self.clicked_element and self.clicked_element.next_segment:
@@ -187,47 +197,18 @@ class Map:
             new_switch.next_segment = self.clicked_element.next_segment
             neighbors_connected.append(self.clicked_element.next_segment)
         else: #otherwise, search for downstream unconnected neighbors:
-            neighbor_info = self.get_neighbor(self.current_tile_x, self.current_tile_y, DOWNSTREAM, exclude=neighbors_connected) 
-            if neighbor_info:
-                neighbor_relative_position, neighbor = neighbor_info
-                neighbor.previous_segment = new_switch
-                neighbor.end1 = Utils.get_opposite_end(neighbor_relative_position)
-                new_switch.end2 = neighbor_relative_position
-                new_switch.next_segment = neighbor
-                neighbors_connected.append(neighbor)
-            else:
-                new_switch.end2 = 'R' # default
+            downstream_neighbour = self.scan_connect_downstream(new_switch, self.current_tile_x, self.current_tile_y, excluded_neighbors=neighbors_connected)
+            if downstream_neighbour: neighbors_connected.append(downstream_neighbour)
         # Now the same but for the new switch's next_segment_inactive, maybe we find a connection for it too:
-        neighbor_info = self.get_neighbor(self.current_tile_x, self.current_tile_y, DOWNSTREAM, exclude=neighbors_connected) 
-        if neighbor_info:
-            neighbor_relative_position, neighbor = neighbor_info
-            neighbor.previous_segment = new_switch
-            neighbor.end1 = Utils.get_opposite_end(neighbor_relative_position)
-            new_switch.end2_inactive = neighbor_relative_position
-            new_switch.next_segment_inactive = neighbor
-            neighbors_connected.append(neighbor)
+        self.scan_connect_downstream(new_switch, self.current_tile_x, self.current_tile_y, excluded_neighbors=neighbors_connected, is_inactive_end=True)
         
-        # If either end is unconnected, chose some default orientations for end1/2/2_inactive: 
-        all_ends_desc = {'end1', 'end2', 'end2_inactive'}
-        all_ends_possible_values = {'L','R','U','D'}
-        need_defaults = True
-        while need_defaults:
-            # take first found unconnected end, if any
-            unconnected_end_desc = next((end_desc for end_desc in all_ends_desc if getattr(new_switch, end_desc) is None), None)
-            if unconnected_end_desc:
-                connected_ends = {getattr(new_switch, end_desc) for end_desc in all_ends_desc if getattr(new_switch, end_desc)}
-                if len(connected_ends) > 0:
-                    setattr(new_switch, unconnected_end_desc, 
-                            next(iter(all_ends_possible_values - connected_ends))) # assigns the first unused orientation found
-                else: # none of the 3 ends is connected, set a hardcoded default - this will happen a single time in this loop
-                    setattr(new_switch, unconnected_end_desc, 'L')
-            else: # all connected, finish:
-                need_defaults = False
-        
+        self.assign_free_end_defaults(new_switch)
         self.map_elements[self.current_tile_x][self.current_tile_y] = new_switch
 
 
     def add_track_drag(self):
+        # This is for placing tracks by dragging the mouse, it is a more simple version than add_track_by_click, because we know for sure the neighbours and simplicity is good also for better response time when dragging.
+
         x, y = pygame.mouse.get_pos()
         if x <= MAP_WIDTH*ELEMENT_SIZE and y <= MAP_HEIGHT*ELEMENT_SIZE:
             current_tile = ((x-1)//ELEMENT_SIZE, (y-1)//ELEMENT_SIZE)

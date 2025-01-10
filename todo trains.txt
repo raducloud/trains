@@ -1,3 +1,6 @@
+In assign_free_defaults,for switch, before starting to search unconnected ends, need to set to None ends which have corresponding previous/next/next_segment == None
+
+
 Run on Web:
 
 https://pypi.org/project/pygbag/
