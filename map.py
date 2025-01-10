@@ -257,3 +257,13 @@ class Map:
                 #prepare for next iteration:
                 self.previous_track_tile_position = current_tile
 
+    def __getstate__(self):
+        """Return state values to be pickled."""
+        state = self.__dict__.copy()
+        # Remove any unpicklable attributes if needed
+        return state
+
+    def __setstate__(self, state):
+        """Restore state from the unpickled state values."""
+        self.__dict__.update(state)
+

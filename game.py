@@ -7,6 +7,8 @@ from game_utils import *
 from game_ui_utils import *
 from map_elements import *
 from map import *
+import pickle
+import os
 
 # This is a game of routing colored trains to stations of same color.
 # The trains advance by themselves at constant speeds, all originating at the single base station form which they spawn at some time intervals and following tracks.
@@ -46,10 +48,21 @@ class Game:
         self.popup_message = None
         self.FPS = FPS_SETUP
         self.font_score = pygame.font.Font(None, LARGE_TEXT_SIZE)
+        self.font_score_small = pygame.font.Font(None, SMALL_TEXT_SIZE)
         #state:
         self.game_state = Game_state.SETUP
         self.score_ok = 0
         self.score_nok = 0
+
+        # Add these lines after other button definitions
+        toolbar_save_y = toolbar_y + BUTTON_MARGIN * 2 + BUTTON_HEIGHT
+        self.save_button = Button(WINDOW_WIDTH - (BUTTON_MARGIN + BUTTON_WIDTH) * 3, 
+                                toolbar_save_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Save")
+        self.load_button = Button(WINDOW_WIDTH - (BUTTON_MARGIN + BUTTON_WIDTH) * 2, 
+                                toolbar_save_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Load")
+        
+        # Add the new buttons to control_buttons
+        self.control_buttons = [self.start_button, self.save_button, self.load_button]
 
 
     def handle_events(self):
@@ -129,6 +142,14 @@ class Game:
                     self.map.current_track_chain = []
                     return True
 
+            if self.save_button.handle_event(event):
+                self.save_map("saved_map.pkl")
+                return True
+            
+            if self.load_button.handle_event(event):
+                self.load_map("saved_map.pkl")
+                return True
+
         return True
 
     def start_game(self):
@@ -202,6 +223,8 @@ class Game:
         if self.game_state != Game_state.SETUP:
             text_surface = self.font_score.render(str(self.score_ok), True, pygame.Color('white'))
             self.screen.blit(text_surface, (WINDOW_WIDTH // 2 , MAP_HEIGHT * ELEMENT_SIZE + SCOREBOARD_HEIGHT//5))
+            text_surface = self.font_score.render(str(self.score_nok), True, pygame.Color('black'))
+            self.screen.blit(text_surface, (WINDOW_WIDTH // 2 - SMALL_TEXT_SIZE , MAP_HEIGHT * ELEMENT_SIZE + SCOREBOARD_HEIGHT//5))
 
 
 
@@ -225,6 +248,26 @@ class Game:
             self.draw()
             self.clock.tick(self.FPS)
         pygame.quit()
+
+    def save_map(self, filename):
+        """Save the current map to a file"""
+        try:
+            with open(filename, 'wb') as f:
+                pickle.dump(self.map, f)
+            self.show_message("Map saved successfully!")
+        except Exception as e:
+            self.show_message(f"Error saving map: {str(e)}")
+
+    def load_map(self, filename):
+        """Load a map from a file"""
+        try:
+            with open(filename, 'rb') as f:
+                self.map = pickle.load(f)
+            self.show_message("Map loaded successfully!")
+        except FileNotFoundError:
+            self.show_message("Map file not found!")
+        except Exception as e:
+            self.show_message(f"Error loading map: {str(e)}")
 
 
 if __name__ == "__main__":
