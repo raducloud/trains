@@ -116,6 +116,11 @@ class Map:
             # So, to not do repetitive writing, and as a programming exercise, we dynamically loop through all attributes of the map_element with getattr()
             all_ends_desc = {'end1', 'end2','end2_inactive'}
             all_ends_possible_values = {'L','R','U','D'}
+            # reset any default orientations (which were set WITHOUT having an actual neighbor on that side), to recalculate them below
+            if not map_element.previous_segment: map_element.end1 = None
+            if not map_element.next_segment: map_element.end2 = None
+            if not map_element.next_segment_inactive: map_element.end2_inactive = None
+            
             need_defaults = True
             while need_defaults:
                 # take first found unconnected end, if any
@@ -134,6 +139,7 @@ class Map:
 
         new_color = random.choice([color for color in ELEMENT_POSSIBLE_COLORS if color not in [station.color for station in self.stations]]) # chose a color not previously used
         new_station = Station(x=self.map_x,y=self.map_y,color=new_color)
+        self.scan_connect_upstream(element_to_be_connected=new_station, current_tile_x=self.current_tile_x, current_tile_y=self.current_tile_y)
         self.stations.append(new_station)
         self.map_elements[self.current_tile_x][self.current_tile_y]=new_station
     
@@ -142,6 +148,7 @@ class Map:
         self.base_station=Base_station(self.map_x,self.map_y)
         if (self.base_station_tile_position != (-1,-1)):  # if the base station already existed, clear it from its old place - there can be only one:
             self.map_elements[self.base_station_tile_position[0]][self.base_station_tile_position[1]] = None
+        self.scan_connect_downstream(element_to_be_connected = self.base_station, current_tile_x = self.current_tile_x, current_tile_y = self.current_tile_y)
         self.map_elements[self.current_tile_x][self.current_tile_y]=self.base_station
         self.base_station_tile_position = (self.current_tile_x, self.current_tile_y)
         
