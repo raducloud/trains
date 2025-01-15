@@ -72,6 +72,9 @@ class Map:
         return None # nothing found
 
     def scan_connect_upstream(self, element_to_be_connected, current_tile_x, current_tile_y, excluded_neighbors=[]) -> Map_element:
+
+        # never allow connecting the downstream also to upstream:
+        if element_to_be_connected.next_segment: excluded_neighbors.append(element_to_be_connected.next_segment)
         neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, UPSTREAM, exclude=excluded_neighbors) 
         if neighbor_info:
             neighbor_relative_position, neighbor = neighbor_info
@@ -92,6 +95,8 @@ class Map:
     # calls get neighbor and, if found, connects it downstream
     def scan_connect_downstream(self, element_to_be_connected, current_tile_x, current_tile_y, excluded_neighbors=[], is_inactive_end=False) -> Map_element:
 
+        # never allow connecting the upstream also to downstream:
+        if element_to_be_connected.previous_segment: excluded_neighbors.append(element_to_be_connected.previous_segment)
         neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, DOWNSTREAM, exclude=excluded_neighbors) 
         if neighbor_info:
             neighbor_relative_position, neighbor = neighbor_info
