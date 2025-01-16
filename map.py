@@ -81,14 +81,15 @@ class Map:
             if neighbor.next_segment is None:
                 neighbor.next_segment = element_to_be_connected
                 neighbor.end2 = Utils.get_opposite_end(neighbor_relative_position)
-                element_to_be_connected.end1 = neighbor_relative_position
-                element_to_be_connected.previous_segment = neighbor
             # if the neighbor is a Switch, also consider the special "next_segment_inactive" and "end2_inactive" connections:
             elif isinstance(neighbor, Switch) and neighbor.next_segment_inactive is None:
                 neighbor.next_segment_inactive = element_to_be_connected
                 neighbor.end2_inactive = Utils.get_opposite_end(neighbor_relative_position)
-                element_to_be_connected.end1 = neighbor_relative_position
-                element_to_be_connected.previous_segment = neighbor
+            element_to_be_connected.end1 = neighbor_relative_position
+            element_to_be_connected.previous_segment = neighbor
+            # in case the current element or the neighbor still have unconnected ends, straighten them in case they got curled after this connection:
+            self.assign_free_end_defaults(neighbor)
+            self.assign_free_end_defaults(element_to_be_connected)
             return neighbor
         else: return None # no upstream neighbor found
 
@@ -108,14 +109,14 @@ class Map:
             else:
                 element_to_be_connected.end2 = neighbor_relative_position
                 element_to_be_connected.next_segment = neighbor
+            # in case the current element or the neighbor still have unconnected ends, straighten them in case they got curled after this connection:
+            self.assign_free_end_defaults(neighbor)
+            self.assign_free_end_defaults(element_to_be_connected)
             return neighbor
         else: return None # no downstream neighbors found
 
     def assign_free_end_defaults(self, map_element):
         # If either end is unconnected, chose some default orientations for end1/2/2_inactive, from the orientations which are not already used by the elemnt's other endings.
-        if isinstance(map_element, Track_segment):  # just assign an opposite end, so straighten the segment:
-            if not map_element.previous_segment: map_element.end1 = Utils.get_opposite_end(map_element.end2)
-            if not map_element.next_segment: map_element.end2 = Utils.get_opposite_end(map_element.end1)
         if isinstance(map_element, Switch):
             # We have many end pair combinations for switch.
             # So, to not do repetitive writing, and as a programming exercise, we dynamically loop through all attributes of the map_element with getattr()
@@ -139,6 +140,9 @@ class Map:
                         setattr(map_element, unconnected_end_desc, 'L')
                 else: # all connected, finish:
                     need_defaults = False
+        else:  # just assign an opposite end, so straighten the segment:
+            if not map_element.previous_segment: map_element.end1 = Utils.get_opposite_end(map_element.end2)
+            if not map_element.next_segment: map_element.end2 = Utils.get_opposite_end(map_element.end1)
 
     def add_station(self):
 
@@ -177,8 +181,6 @@ class Map:
                 if upstream_neighbor: neighbors_connected.append(upstream_neighbor)
                 # same for downstram:
                 self.scan_connect_downstream(element_to_be_connected=current_track_segment, current_tile_x=current_tile_x, current_tile_y=current_tile_y, excluded_neighbors=neighbors_connected)
-                # if any ending is still unconnected, assign free defaults:
-                self.assign_free_end_defaults(current_track_segment)
                 
                 # add the track segment to the map and current temp chain:
                 self.map_elements[current_tile_x][current_tile_y] = current_track_segment

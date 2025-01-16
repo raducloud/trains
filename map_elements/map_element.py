@@ -8,7 +8,7 @@ class Map_element:
     # end1 and previous_segment are towards "upstream" and end2 and next_segment are towards "downstream", relative to the train movement from the base station.
     #    end1/2 are used for drawing and so must have values even if the segment is not connected to neighbors.
     #    We detect that an ending is not connected by checking the prrevious/next_segment attributes for being populated or not.
-    def __init__(self, x, y, end1:str='L', end2:str='R', previous_segment=None, next_segment=None, color=pygame.Color('white'), size=ELEMENT_SIZE):
+    def __init__(self, x, y, end1:str='L', end2:str='R', previous_segment=None, next_segment=None, color=pygame.Color('white'), size=ELEMENT_SIZE, scale_factor = 1):
         self.x = x
         self.y = y
         # Take care for end1 and previous_segment to be pointing towards the same neighbor, same for end2 and next_segment. This is used in logic.
@@ -23,6 +23,10 @@ class Map_element:
         self.next_segment = next_segment
         self.size = size
         self.color = color
+        self.scale_factor = scale_factor
+        self.font = pygame.font.Font(None, VERY_SMALL_TEXT_SIZE)
+        self.text = None
+        self.text_rect = None
         self.recompute_heading() 
         
     # The end1 and end2 attributes are implemented as properties in order to add some auto-rearanging or extra logic of the element in some cases. 
@@ -74,11 +78,12 @@ class Map_element:
             else:
                 self.versor_x = detla_x / hypotenuse
                 self.versor_y = detla_y / hypotenuse
+        
+        # Write move versors for debugging
+        self.text = self.font.render(f"{self.versor_x:.1f},{self.versor_y:.1f}", True, pygame.Color('white'))
+        self.text_rect = self.text.get_rect(center=(self.x, self.y-ELEMENT_SIZE//3))
 
     def draw(self, screen):
         # Write move versors for debugging
-        font = pygame.font.Font(None, VERY_SMALL_TEXT_SIZE)
-        text = font.render(f"{self.versor_x:.1f},{self.versor_y:.1f}", True, pygame.Color('white'))
-        text_rect = text.get_rect(center=(self.x, self.y-ELEMENT_SIZE//3))
-        screen.blit(text, text_rect)
+        screen.blit(self.text, self.text_rect)
 
