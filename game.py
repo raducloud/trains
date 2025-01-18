@@ -1,14 +1,7 @@
-import pygame
-from enum import Enum, auto
-from typing import List, Tuple, Dict
-from game_utils import *
-from game_config import *
-from game_utils import *
-from game_ui_utils import *
-from map_elements import *
-from map import *
 import pickle
-import os
+
+from map import *
+
 
 # This is a game of routing colored trains to stations of same color.
 # The trains advance by themselves at constant speeds, all originating at the single base station form which they spawn at some time intervals and following tracks.
@@ -95,19 +88,19 @@ class Game:
                     
                     self.map.set_click_location(x, y)
 
-                    if (self.game_state == Game_state.SETUP):
+                    if self.game_state == Game_state.SETUP:
                     
-                        if (self.station_button.is_selected and self.map.clicked_element is None):
+                        if self.station_button.is_selected and self.map.clicked_element is None:
                             self.map.add_station()
                             if len(self.map.stations) == len(ELEMENT_POSSIBLE_COLORS):
                                 self.show_message('This was the last station available.')
                                 self.station_button.is_enabled = False
                                 self.station_button.is_selected = False
 
-                        if (self.base_station_button.is_selected and self.map.clicked_element is None):
+                        if self.base_station_button.is_selected and self.map.clicked_element is None:
                             self.map.add_base_station()
 
-                        if (self.track_button.is_selected and self.map.clicked_element is None):
+                        if self.track_button.is_selected and self.map.clicked_element is None:
                             self.map.add_track_by_click()
 
                         if (self.switch_button.is_selected and # the switch can be placed on an empty tile or overwrite a track segment
@@ -153,7 +146,7 @@ class Game:
         return True
 
     def start_game(self):
-        if not(self.map.base_station): self.show_message("Place the base station before starting the game.")
+        if not self.map.base_station: self.show_message("Place the base station before starting the game.")
         elif len(self.map.stations) == 0: self.show_message("Place at least one destination station before starting the game.")
         else:
             self.game_state = Game_state.RUNNING  # signal to run_app that it needs to call update_map

@@ -1,11 +1,10 @@
 import random
-import pygame
-from enum import Enum, auto
-from typing import List, Tuple, Dict
-from game_config import *
-from game_utils import *
+from typing import Tuple
+
 from game_ui_utils import *
+from game_utils import *
 from map_elements import *
+
 
 class Map:
     def __init__(self):
@@ -32,14 +31,16 @@ class Map:
         self.map_y = (y-1)//ELEMENT_SIZE*ELEMENT_SIZE+ELEMENT_SIZE//2
         self.clicked_element = self.map_elements[self.current_tile_x][self.current_tile_y]
 
-    def get_neighbor(self, map_tile_x:int, map_tile_y:int, direction:str, exclude:list=[]) -> Tuple[str, Map_element]:
+    def get_neighbor(self, map_tile_x:int, map_tile_y:int, direction:str, exclude:list=None) -> Tuple[str, Map_element]:
          # Returns the first unconnected neighbor element found and its relative position in format l/R/U/D.
          # It is useful during laying track/switch chains, for connecting0
          # direction parameter should be "upstraem" or "downstream".
          # exclude parameter is used for cases like a neighbor being able to connect both to UPSTREAM and DOWNSTREAM, to not create an infinite cycle, exclude it at second search
 
         neighbors = {}
-        if map_tile_x > 0 : 
+        if not exclude: exclude = []
+
+        if map_tile_x > 0 :
             neighbor = self.map_elements[map_tile_x-1][map_tile_y]
             if neighbor: neighbors['L']=neighbor
         if map_tile_x < MAP_WIDTH - 1 : 
@@ -58,24 +59,27 @@ class Map:
         if direction==UPSTREAM:
             # The below map element types are ordered by priority of connection, in case multiple neighbor types exist. This order can be changed by the likes of the players.
             for relative_position, buddy in neighbors.items():
-                if (isinstance(buddy, Base_station) and buddy.next_segment is None) : return (relative_position, buddy)
+                if isinstance(buddy, Base_station) and buddy.next_segment is None: return relative_position, buddy
             for relative_position, buddy in neighbors.items():
-                if (isinstance(buddy, Track_segment) or isinstance(buddy, Switch)) and buddy.next_segment is None : return (relative_position, buddy)
+                if (isinstance(buddy, Track_segment) or isinstance(buddy, Switch)) and buddy.next_segment is None : return relative_position, buddy
             for relative_position, buddy in neighbors.items():
-                if isinstance(buddy, Switch) and buddy.next_segment_inactive is None : return (relative_position, buddy)
+                if isinstance(buddy, Switch) and buddy.next_segment_inactive is None : return relative_position, buddy
         elif direction==DOWNSTREAM:
             for relative_position, buddy in neighbors.items():
-                if (isinstance(buddy, Track_segment) or isinstance(buddy, Switch)) and buddy.previous_segment is None : return (relative_position, buddy)
+                if (isinstance(buddy, Track_segment) or isinstance(buddy, Switch)) and buddy.previous_segment is None : return relative_position, buddy
             for relative_position, buddy in neighbors.items():
-                if (isinstance(buddy, Station) and buddy.previous_segment is None) : return (relative_position, buddy)
+                if isinstance(buddy, Station) and buddy.previous_segment is None: return relative_position, buddy
         else: raise ValueError("get_neighbor expects direction='{UPSTREAM}'/'{DOWNSTREAM}', but received '{direction}'") 
         return None # nothing found
 
-    def scan_connect_upstream(self, element_to_be_connected, current_tile_x, current_tile_y, excluded_neighbors=[]) -> Map_element:
+    def scan_connect_upstream(self, element_to_be_connected, current_tile_x, current_tile_y, excluded_neighbors:list=None) -> Map_element:
 
+        if not excluded_neighbors: excluded_neighbors = []
         # never allow connecting the downstream also to upstream:
         if element_to_be_connected.next_segment: excluded_neighbors.append(element_to_be_connected.next_segment)
-        neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, UPSTREAM, exclude=excluded_neighbors) 
+        if isinstance(element_to_be_connected, Switch) and element_to_be_connected.next_segment_inactive: excluded_neighbors.append(element_to_be_connected.next_segment_inactive)
+
+        neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, UPSTREAM, exclude=excluded_neighbors)
         if neighbor_info:
             neighbor_relative_position, neighbor = neighbor_info
             if neighbor.next_segment is None:
@@ -94,10 +98,12 @@ class Map:
         else: return None # no upstream neighbor found
 
     # calls get neighbor and, if found, connects it downstream
-    def scan_connect_downstream(self, element_to_be_connected, current_tile_x, current_tile_y, excluded_neighbors=[], is_inactive_end=False) -> Map_element:
+    def scan_connect_downstream(self, element_to_be_connected, current_tile_x, current_tile_y, excluded_neighbors:list=None, is_inactive_end=False) -> Map_element:
 
+        if not excluded_neighbors: excluded_neighbors = []
         # never allow connecting the upstream also to downstream:
         if element_to_be_connected.previous_segment: excluded_neighbors.append(element_to_be_connected.previous_segment)
+
         neighbor_info = self.get_neighbor(current_tile_x, current_tile_y, DOWNSTREAM, exclude=excluded_neighbors) 
         if neighbor_info:
             neighbor_relative_position, neighbor = neighbor_info
@@ -126,7 +132,7 @@ class Map:
             if not map_element.previous_segment: map_element.end1 = None
             if not map_element.next_segment: map_element.end2 = None
             if not map_element.next_segment_inactive: map_element.end2_inactive = None
-            
+
             need_defaults = True
             while need_defaults:
                 # take first found unconnected end, if any
@@ -134,7 +140,7 @@ class Map:
                 if unconnected_end_desc:
                     connected_ends = {getattr(map_element, end_desc) for end_desc in all_ends_desc if getattr(map_element, end_desc)}
                     if len(connected_ends) > 0:
-                        setattr(map_element, unconnected_end_desc, 
+                        setattr(map_element, unconnected_end_desc,
                                 next(iter(all_ends_possible_values - connected_ends))) # assigns the first unused orientation found
                     else: # none of the 3 ends is connected, set a hardcoded default - this will happen a single time in this loop
                         setattr(map_element, unconnected_end_desc, 'L')

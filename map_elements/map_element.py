@@ -1,4 +1,3 @@
-from pygame import Color
 from math import sqrt
 from game_config import *
 
