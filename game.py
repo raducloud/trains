@@ -26,17 +26,25 @@ class Game:
         self.trains_at_destination = 0
         self.time_to_next_train_spawn = 0
 
-        # Others:
         # UI elements:
+
         self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
         toolbar_y = MAP_HEIGHT * ELEMENT_SIZE + SCOREBOARD_HEIGHT + BUTTON_MARGIN
+        # Palette buttons (to draw on the map):
         self.base_station_button = ToggleButton(BUTTON_MARGIN, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Base")
         self.station_button = ToggleButton(BUTTON_MARGIN * 2 + BUTTON_WIDTH, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Station")
         self.track_button = ToggleButton(BUTTON_MARGIN * 3 + BUTTON_WIDTH * 2, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Track")
         self.switch_button = ToggleButton(BUTTON_MARGIN * 4 + BUTTON_WIDTH * 3, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Switch")
-        self.start_button = Button(WINDOW_WIDTH - BUTTON_MARGIN - BUTTON_WIDTH, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Start")
-        self.palette_buttons = [self.base_station_button, self.station_button, self.track_button, self.switch_button]
-        self.control_buttons = [self.start_button]
+        self.eraser_button = ToggleButton(WINDOW_WIDTH - BUTTON_MARGIN - BUTTON_WIDTH, toolbar_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Eraser")
+        self.palette_buttons = [self.base_station_button, self.station_button, self.track_button, self.switch_button, self.eraser_button]
+
+        # Other tool buttons:
+        toolbar_row2_y = toolbar_y + BUTTON_MARGIN * 2 + BUTTON_HEIGHT
+        self.play_button = Button(WINDOW_WIDTH - BUTTON_MARGIN - BUTTON_WIDTH, toolbar_row2_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Play")
+        self.save_button = Button(WINDOW_WIDTH - (BUTTON_MARGIN + BUTTON_WIDTH) * 3, toolbar_row2_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Save")
+        self.load_button = Button(WINDOW_WIDTH - (BUTTON_MARGIN + BUTTON_WIDTH) * 2, toolbar_row2_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Load")
+        self.control_buttons = [self.play_button, self.save_button, self.load_button]
+
         self.popup_active = False
         self.popup_message = None
         self.FPS = FPS_SETUP
@@ -46,16 +54,6 @@ class Game:
         self.game_state = Game_state.SETUP
         self.score_ok = 0
         self.score_nok = 0
-
-        # Add these lines after other button definitions
-        toolbar_save_y = toolbar_y + BUTTON_MARGIN * 2 + BUTTON_HEIGHT
-        self.save_button = Button(WINDOW_WIDTH - (BUTTON_MARGIN + BUTTON_WIDTH) * 3, 
-                                toolbar_save_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Save")
-        self.load_button = Button(WINDOW_WIDTH - (BUTTON_MARGIN + BUTTON_WIDTH) * 2, 
-                                toolbar_save_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Load")
-        
-        # Add the new buttons to control_buttons
-        self.control_buttons = [self.start_button, self.save_button, self.load_button]
 
 
     def handle_events(self):
@@ -68,7 +66,7 @@ class Game:
             if event.type == pygame.QUIT:
                 return False
     
-            #handle clicks on buttons:
+            #handle clicks on palette buttons:
             for button in self.palette_buttons:
                 if button.handle_event(event): # if button was pressed:
                      # pop all other buttons (they might be toggle buttons)
@@ -77,8 +75,11 @@ class Game:
                             other_button.is_selected = False
                     return True
 
-            if self.start_button.handle_event(event) and self.game_state == Game_state.SETUP:
-                self.start_game()
+            if self.play_button.handle_event(event):
+                if self.game_state == Game_state.SETUP:
+                    self.start_game()
+                elif self.game_state == Game_state.RUNNING:
+                    self.stop_game()
                 return True
 
             # handle clicks on map area:
@@ -91,11 +92,10 @@ class Game:
                     if self.game_state == Game_state.SETUP:
                     
                         if self.station_button.is_selected and self.map.clicked_element is None:
-                            self.map.add_station()
                             if len(self.map.stations) == len(ELEMENT_POSSIBLE_COLORS):
-                                self.show_message('This was the last station available.')
-                                self.station_button.is_enabled = False
-                                self.station_button.is_selected = False
+                                self.show_message(f'Maximum stations reached ({len(ELEMENT_POSSIBLE_COLORS)})')
+                            else:
+                                self.map.add_station()
 
                         if self.base_station_button.is_selected and self.map.clicked_element is None:
                             self.map.add_base_station()
@@ -106,6 +106,9 @@ class Game:
                         if (self.switch_button.is_selected and # the switch can be placed on an empty tile or overwrite a track segment
                             (self.map.clicked_element is None or isinstance(self.map.clicked_element,Track_segment))):
                             self.map.add_switch()
+
+                        if (self.eraser_button.is_selected and self.map.clicked_element is not None):
+                            self.map.erase_element()
 
                     elif self.game_state == Game_state.RUNNING and isinstance(self.map.clicked_element, Switch):
                         self.map.clicked_element.toggle()
@@ -146,23 +149,25 @@ class Game:
         return True
 
     def start_game(self):
-        if not self.map.base_station: self.show_message("Place the base station before starting the game.")
-        elif len(self.map.stations) == 0: self.show_message("Place at least one destination station before starting the game.")
+        if not self.map.base_station:
+            self.show_message("Place the base station before starting the game.")
+        elif len(self.map.stations) == 0:
+            self.show_message("Place at least one destination station before starting the game.")
         else:
             self.game_state = Game_state.RUNNING  # signal to run_app that it needs to call update_map
-            for button in self.control_buttons + self.palette_buttons: 
+            for button in self.palette_buttons:
                 button.is_enabled = False
                 button.is_selected = False
-            # self.trains.append(Train(self.map.base_station.x, 
-            #                         self.map.base_station.y, 
-            #                         color = random.choice([station.color for station in self.map.stations]),
-            #                         current_tile = self.map.base_station,
-            #                         train_status = Train_status.EN_ROUTE
-            #                         ))
-            # During setup we might need a different FPS (to allow quick response while dragging track) than at train runtime (where 1 pixel / frame might be too fast if big FPS)
+            self.play_button.text = "Pause"
             self.FPS = FPS_RUN
-        
-    
+
+    def stop_game(self):
+        self.game_state = Game_state.SETUP  # also signals to run_app to stop
+        for button in self.palette_buttons:
+            button.is_enabled = True
+        self.play_button.text = "Play"
+        self.FPS = FPS_SETUP
+
     def update_map(self):
 
         en_route_trains = sum(1 for train in self.trains if train.train_status == Train_status.EN_ROUTE)

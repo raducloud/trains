@@ -150,6 +150,27 @@ class Map:
             if not map_element.previous_segment: map_element.end1 = Utils.get_opposite_end(map_element.end2)
             if not map_element.next_segment: map_element.end2 = Utils.get_opposite_end(map_element.end1)
 
+    def erase_element(self):
+
+        # clear the element from the map state variables:
+        if isinstance(self.clicked_element, Station): self.stations.remove(self.clicked_element)
+        elif isinstance(self.clicked_element, Base_station): self.base_station = None
+
+        # clear the element's connections:
+        if self.clicked_element.next_segment:
+            self.clicked_element.next_segment.previous_segment = None
+        if isinstance(self.clicked_element, Switch) and self.clicked_element.next_segment_inactive:
+            self.clicked_element.next_segment_inactive.previous_segment = None
+        if self.clicked_element.previous_segment:  # this is a bit more complex because upstream we can find a Switch or not:
+            if self.clicked_element.previous_segment.next_segment == self.clicked_element:
+                self.clicked_element.previous_segment.next_segment = None
+            elif isinstance(self.clicked_element.previous_segment, Switch) and self.clicked_element.previous_segment.next_segment_inactive == self.clicked_element:
+                self.clicked_element.previous_segment.next_segment_inactive = None
+
+        # finally, clear the element from the map:
+        self.map_elements[self.current_tile_x][self.current_tile_y] = None
+
+
     def add_station(self):
 
         new_color = random.choice([color for color in ELEMENT_POSSIBLE_COLORS if color not in [station.color for station in self.stations]]) # chose a color not previously used
