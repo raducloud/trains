@@ -21,7 +21,6 @@ class Game:
         # map-related gameplay items:
         self.map = Map()
         self.trains = []
-        self.colors = [] # all colors used after all stations have been placed
         # map state:
         self.trains_en_route = 0
         self.trains_at_destination = 0
@@ -84,11 +83,11 @@ class Game:
                 return True
 
             if self.save_button.handle_event(event):
-                self.save_map("saved_map.pkl")
+                self.save_map("map.pkl")
                 return True
 
             if self.load_button.handle_event(event):
-                self.load_map("saved_map.pkl")
+                self.load_map("map.pkl")
                 return True
 
             # handle clicks on map area:
@@ -253,20 +252,24 @@ class Game:
         try:
             with open(filename, 'wb') as f:
                 pickle.dump(self.map, f)
-            self.show_message("Map saved successfully!")
+            self.show_message(f"Map saved successfully as {filename}.")
         except Exception as e:
             self.show_message(f"Error saving map: {str(e)}")
 
     def load_map(self, filename):
         """Load a map from a file"""
-        try:
-            with open(filename, 'rb') as f:
-                self.map = pickle.load(f)
-            self.show_message("Map loaded successfully!")
-        except FileNotFoundError:
-            self.show_message("Map file not found!")
-        except Exception as e:
-            self.show_message(f"Error loading map: {str(e)}")
+        # Check if current map has any non-None elements
+        if any(element is not None for row in self.map.map_elements for element in row):
+            self.show_message("Your map is beautiful, if you are sure, clear it first please.")
+        else:
+            try:
+                with open(filename, 'rb') as f:
+                    self.map = pickle.load(f)
+                self.show_message("Map loaded successfully.")
+            except FileNotFoundError:
+                self.show_message(f"Map file {filename} not found!")
+            except Exception as e:
+                self.show_message(f"Error loading map: {str(e)}")
 
 
 if __name__ == "__main__":

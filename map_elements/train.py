@@ -64,7 +64,13 @@ class Train(Map_element):
 
 
     def draw_simple(self, screen):
+        # Main circle (marble-like)
         pygame.draw.circle(screen, self.color, (self.x, self.y), self.size//3)
+        # Shine effect (small white circle in upper-left)
+        shine_offset = self.size//8
+        pygame.draw.circle(screen, (255, 255, 255), 
+                         (self.x - shine_offset, self.y - shine_offset), 
+                         self.size//8)
         
     
     def draw_complex(self, screen):
