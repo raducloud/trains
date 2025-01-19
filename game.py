@@ -1,4 +1,5 @@
 import pickle
+import pygame
 
 from map import *
 
@@ -82,6 +83,14 @@ class Game:
                     self.stop_game()
                 return True
 
+            if self.save_button.handle_event(event):
+                self.save_map("saved_map.pkl")
+                return True
+
+            if self.load_button.handle_event(event):
+                self.load_map("saved_map.pkl")
+                return True
+
             # handle clicks on map area:
             if event.type == pygame.MOUSEBUTTONDOWN:
                 x,y = pygame.mouse.get_pos()
@@ -137,14 +146,6 @@ class Game:
                     self.map.previous_track_tile_position = None
                     self.map.current_track_chain = []
                     return True
-
-            if self.save_button.handle_event(event):
-                self.save_map("saved_map.pkl")
-                return True
-            
-            if self.load_button.handle_event(event):
-                self.load_map("saved_map.pkl")
-                return True
 
         return True
 

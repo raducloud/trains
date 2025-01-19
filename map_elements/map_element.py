@@ -23,7 +23,6 @@ class Map_element:
         self.size = size
         self.color = color
         self.scale_factor = scale_factor
-        self.font = pygame.font.Font(None, VERY_SMALL_TEXT_SIZE)
         self.text = None
         self.text_rect = None
         self.recompute_heading() 
@@ -79,10 +78,23 @@ class Map_element:
                 self.versor_y = detla_y / hypotenuse
         
         # Write move versors for debugging
-        self.text = self.font.render(f"{self.versor_x:.1f},{self.versor_y:.1f}", True, pygame.Color('white'))
+        self.text = FONT_VERY_SMALL.render(f"{self.versor_x:.1f},{self.versor_y:.1f}", True, pygame.Color('white'))
         self.text_rect = self.text.get_rect(center=(self.x, self.y-ELEMENT_SIZE//3))
 
     def draw(self, screen):
         # Write move versors for debugging
         screen.blit(self.text, self.text_rect)
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Remove the pygame Surface objects before pickling
+        state['text'] = None
+        state['text_rect'] = None
+        return state
+        
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # Recreate the text surface after unpickling
+        self.text = FONT_VERY_SMALL.render(f"{self.versor_x:.1f},{self.versor_y:.1f}", True, pygame.Color('white'))
+        self.text_rect = self.text.get_rect(center=(self.x, self.y-ELEMENT_SIZE//3))
 

@@ -88,5 +88,5 @@ class Train(Map_element):
         
 
     def draw(self, screen):
-        self.draw_complex(screen)
+        self.draw_simple(screen)
     

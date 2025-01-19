@@ -3,6 +3,8 @@ import pygame
 import platform
 import sys
 
+pygame.init()  # at least for font setup
+
 if sys.platform.startswith('win'):
     print('Running on Windows')
     GAME_SPACE_SCALE_FACTOR = 1
@@ -12,6 +14,9 @@ elif platform.system() == 'Darwin':  # For iOS/macOS
 elif platform.system() == 'Linux':   # For Android/Linux
     print('Running on Android/Linux')
     GAME_SPACE_SCALE_FACTOR = 2
+else:
+    GAME_SPACE_SCALE_FACTOR = 1
+    print(f'Unrecognized OS: {platform.system()}, defaulting to GAME_SPACE_SCALE_FACTOR={GAME_SPACE_SCALE_FACTOR}')
 
 FPS_SETUP = 60
 FPS_RUN = 20
@@ -37,6 +42,8 @@ BUTTON_DISABLED_TEXT_COLOR = (100, 100, 100)
 TRAIN_SPEED = 1    # Only integers. ELEMENT_SIZE // FPS_RUN would result in 1 element per second
 UPSTREAM = "upstream"
 DOWNSTREAM = "downstream"
+FONT_VERY_SMALL = pygame.font.Font(None, VERY_SMALL_TEXT_SIZE)
+
 
 ELEMENT_POSSIBLE_COLORS = [pygame.Color('red'),
                            pygame.Color('blue'),
