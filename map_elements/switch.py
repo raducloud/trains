@@ -43,10 +43,12 @@ class Switch(Map_element):
     def draw(self, screen):
         # Draw a circle at the center of the switch
         pygame.draw.circle(screen, pygame.Color(20, 160, 20), (self.x, self.y), self.size // 2)
+        pygame.draw.circle(screen, pygame.Color(20, 160, 20), (self.x, self.y), radius=self.size // 2)
+        pygame.draw.circle(screen, pygame.Color(180, 180, 180), (self.x, self.y), radius=self.size // 2, width=2*GAME_SPACE_SCALE_FACTOR)
         # Draw both paths, make the inactive one dimmer
-        pygame.draw.line(screen, self.color, self.end1_coordinates, self.end2_coordinates, 3)
-        pygame.draw.line(screen, pygame.Color(100, 100, 100), self.end1_coordinates, self.end2_inactive_coordinates, 3)
+        pygame.draw.line(screen, self.color, self.end1_coordinates, self.end2_coordinates, 4*GAME_SPACE_SCALE_FACTOR)
+        pygame.draw.line(screen, pygame.Color(100, 100, 100), self.end1_coordinates, self.end2_inactive_coordinates, 4)
         
         # small yellow circle to easily see end2:
-        pygame.draw.circle(screen, pygame.Color("yellow"), (self.end2_coordinates[0]*0.8+self.x*0.2 , self.end2_coordinates[1]*0.8+self.y*0.2), 5)
+        pygame.draw.circle(screen, pygame.Color("yellow"), (self.end2_coordinates[0]*0.8+self.x*0.2 , self.end2_coordinates[1]*0.8+self.y*0.2), 5*GAME_SPACE_SCALE_FACTOR)
         super().draw(screen)
