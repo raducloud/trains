@@ -1,4 +1,5 @@
 import pygame
+import math
 from map_elements import *
 from game_config import *
 
@@ -12,6 +13,19 @@ class Train(Map_element):
         self._x_float = float(x)
         self._y_float = float(y)
         super().__init__(x=x, y=y, color=color)
+        
+        try:
+            # Load base image (should be white/grayscale)
+            self.original_image = pygame.image.load("assets/train.png").convert_alpha()
+            # Scale the image
+            self.original_image = pygame.transform.scale(self.original_image, (self.size, self.size))
+            # Apply color tint
+            self.original_image = self._apply_color_tint(self.original_image, self.color)
+            self.image = self.original_image
+        except pygame.error:
+            print("Warning: Could not load train image. Falling back to simple drawing.")
+            self.original_image = None
+            self.image = None
 
     @property
     def x(self): 
@@ -28,6 +42,13 @@ class Train(Map_element):
     def y(self, value): 
         self._y_float = float(value)
 
+    def _get_angle_from_versors(self):
+        # Calculate angle in degrees from versors
+        # arctan2 returns angle in radians, convert to degrees
+        # Subtract 90 because pygame's rotation assumes 0° points upward
+        angle = math.degrees(math.atan2(self.current_tile.versor_y, 
+                                      self.current_tile.versor_x))
+        return angle
 
     def advance(self) -> int:  # returns +1 if the train arrived in home station, -1 if in the wrong station, 0 otherwise
 
@@ -94,5 +115,39 @@ class Train(Map_element):
         
 
     def draw(self, screen):
-        self.draw_simple(screen)
+        if self.image:
+            # Rotate image based on movement direction
+            angle = self._get_angle_from_versors()
+            self.image = pygame.transform.rotate(self.original_image, angle)
+            # Calculate position to center the image on the train's coordinates
+            image_rect = self.image.get_rect(center=(self.x, self.y))
+            screen.blit(self.image, image_rect)
+        else:
+            # Fallback to simple drawing if image loading failed
+            self.draw_simple(screen)
+
+    def _apply_color_tint(self, surface, color):
+        # Create a copy of the original surface
+        tinted = surface.copy()
+        
+        # Create a color overlay
+        overlay = pygame.Surface(tinted.get_size(), pygame.SRCALPHA)
+        overlay.fill(color)
+        
+        # Blend the overlay with the original image, preserving alpha
+        for x in range(tinted.get_width()):
+            for y in range(tinted.get_height()):
+                original_color = tinted.get_at((x, y))
+                if original_color.a > 0:  # Only tint non-transparent pixels
+                    # Calculate new color based on original brightness
+                    brightness = (original_color.r + original_color.g + original_color.b) / (3 * 255)
+                    new_color = pygame.Color(
+                        int(color[0] * brightness),
+                        int(color[1] * brightness),
+                        int(color[2] * brightness),
+                        original_color.a
+                    )
+                    tinted.set_at((x, y), new_color)
+        
+        return tinted
     
