@@ -4,7 +4,19 @@ from map_elements import *
 from game_config import *
 
 class Train(Map_element):
+    # Add static class variables
+    _base_image = None
     
+    @classmethod
+    def load_assets(cls, size):
+        """Load the base train image once for all instances"""
+        try:
+            cls._base_image = pygame.image.load("assets/train.png").convert_alpha()
+            cls._base_image = pygame.transform.scale(cls._base_image, (size, size))
+        except:
+            print("Warning: Could not load train image. Trains will use simple drawing.")
+            cls._base_image = None
+
     def __init__(self, x, y, color, current_tile:Map_element, train_status = Train_status.IN_BASE):
         self.train_status = train_status
         self.current_tile = current_tile
@@ -14,16 +26,15 @@ class Train(Map_element):
         self._y_float = float(y)
         super().__init__(x=x, y=y, color=color)
         
-        try:
-            # Load base image (should be white/grayscale)
-            self.original_image = pygame.image.load("assets/train.png").convert_alpha()
-            # Scale the image
-            self.original_image = pygame.transform.scale(self.original_image, (self.size, self.size))
-            # Apply color tint
-            self.original_image = self._apply_color_tint(self.original_image, self.color)
+        if Train._base_image is None and USE_TRAIN_IMAGE:
+            # Load assets if not already loaded
+            Train.load_assets(self.size)
+            
+        if Train._base_image is not None:
+            # Create instance-specific tinted image
+            self.original_image = self._apply_color_tint(Train._base_image, self.color)
             self.image = self.original_image
-        except pygame.error:
-            print("Warning: Could not load train image. Falling back to simple drawing.")
+        else:
             self.original_image = None
             self.image = None
 
@@ -46,10 +57,35 @@ class Train(Map_element):
         # Calculate angle in degrees from versors
         # arctan2 returns angle in radians, convert to degrees
         # Subtract 90 because pygame's rotation assumes 0° points upward
-        angle = math.degrees(math.atan2(self.current_tile.versor_y, 
+        angle = math.degrees(math.atan2(-self.current_tile.versor_y, # negated because the screen coordinates are top-to-down, while the pygame.transform.rotate assumes math orientation (Y points up)
                                       self.current_tile.versor_x))
         return angle
 
+    def _apply_color_tint(self, surface, color):
+        # Create a copy of the original surface
+        tinted = surface.copy()
+        
+        # Create a color overlay
+        overlay = pygame.Surface(tinted.get_size(), pygame.SRCALPHA)
+        overlay.fill(color)
+        
+        # Blend the overlay with the original image, preserving alpha
+        for x in range(tinted.get_width()):
+            for y in range(tinted.get_height()):
+                original_color = tinted.get_at((x, y))
+                if original_color.a > 0:  # Only tint non-transparent pixels
+                    # Calculate new color based on original brightness
+                    brightness = (original_color.r + original_color.g + original_color.b) / (1 * 255) # normally should be 3* 255, I've lowered it for extra brightness
+                    new_color = pygame.Color(
+                        min(int(color[0] * brightness), 255),
+                        min(int(color[1] * brightness), 255),
+                        min(int(color[2] * brightness), 255),
+                        original_color.a
+                    )
+                    tinted.set_at((x, y), new_color)
+        
+        return tinted
+    
     def advance(self) -> int:  # returns +1 if the train arrived in home station, -1 if in the wrong station, 0 otherwise
 
         score_point = 0
@@ -126,28 +162,3 @@ class Train(Map_element):
             # Fallback to simple drawing if image loading failed
             self.draw_simple(screen)
 
-    def _apply_color_tint(self, surface, color):
-        # Create a copy of the original surface
-        tinted = surface.copy()
-        
-        # Create a color overlay
-        overlay = pygame.Surface(tinted.get_size(), pygame.SRCALPHA)
-        overlay.fill(color)
-        
-        # Blend the overlay with the original image, preserving alpha
-        for x in range(tinted.get_width()):
-            for y in range(tinted.get_height()):
-                original_color = tinted.get_at((x, y))
-                if original_color.a > 0:  # Only tint non-transparent pixels
-                    # Calculate new color based on original brightness
-                    brightness = (original_color.r + original_color.g + original_color.b) / (3 * 255)
-                    new_color = pygame.Color(
-                        int(color[0] * brightness),
-                        int(color[1] * brightness),
-                        int(color[2] * brightness),
-                        original_color.a
-                    )
-                    tinted.set_at((x, y), new_color)
-        
-        return tinted
-    

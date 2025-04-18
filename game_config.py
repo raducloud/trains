@@ -43,7 +43,7 @@ TRAIN_SPEED = 1    # Only integers. ELEMENT_SIZE // FPS_RUN would result in 1 el
 UPSTREAM = "upstream"
 DOWNSTREAM = "downstream"
 FONT_VERY_SMALL = pygame.font.Font(None, VERY_SMALL_TEXT_SIZE)
-
+USE_TRAIN_IMAGE = True
 
 ELEMENT_POSSIBLE_COLORS = [pygame.Color('red'),
                            pygame.Color('blue'),
