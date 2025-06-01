@@ -19,7 +19,7 @@ else:
     print(f'Unrecognized OS: {platform.system()}, defaulting to GAME_SPACE_SCALE_FACTOR={GAME_SPACE_SCALE_FACTOR}')
 
 FPS_SETUP = 60
-FPS_RUN = 20
+FPS_RUN = 20 * GAME_SPACE_SCALE_FACTOR
 TRAIN_SPAWN_INTERVAL = 5  # seconds
 MAP_WIDTH = 10
 MAP_HEIGHT = 10
@@ -43,7 +43,7 @@ TRAIN_SPEED = 1    # Only integers. ELEMENT_SIZE // FPS_RUN would result in 1 el
 UPSTREAM = "upstream"
 DOWNSTREAM = "downstream"
 FONT_VERY_SMALL = pygame.font.Font(None, VERY_SMALL_TEXT_SIZE)
-USE_TRAIN_IMAGE = True
+USE_TRAIN_IMAGE = False
 
 ELEMENT_POSSIBLE_COLORS = [pygame.Color('red'),
                            pygame.Color('blue'),

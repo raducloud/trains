@@ -248,48 +248,60 @@ class Map:
 
 
     def add_track_drag(self):
-        # This is for placing tracks by dragging the mouse, it is a more simple version than add_track_by_click, because we know for sure the neighbours and simplicity is good also for better response time when dragging.
+        # This is for placing tracks by DRAGGING the mouse. Unlike placing by simple click, here it's more simple that we already know the previous segment to connect to, 
+        #   but also more complicated because we have to ASURE connectedness EVEN if the user draggs accros diagonaly (which is not supported by place-by-click)
+        #     or if the user drags so fast that the previous drawn segment is not adjacent to current tile.
 
-        x, y = pygame.mouse.get_pos()
-        if x <= MAP_WIDTH*ELEMENT_SIZE and y <= MAP_HEIGHT*ELEMENT_SIZE:
-            current_tile = ((x-1)//ELEMENT_SIZE, (y-1)//ELEMENT_SIZE)
-            current_tile_x, current_tile_y = current_tile
+        x_mouse, y_mouse = pygame.mouse.get_pos()
+        end_tile_x = (x_mouse-1)//ELEMENT_SIZE
+        end_tile_y = (y_mouse-1)//ELEMENT_SIZE 
+        end_tile = (end_tile_x, end_tile_y)
+        start_tile_x, start_tile_y = self.previous_track_tile_position
+        
+        if (x_mouse <= MAP_WIDTH*ELEMENT_SIZE and y_mouse <= MAP_HEIGHT*ELEMENT_SIZE
+                    and end_tile != self.previous_track_tile_position
+                    and self.previous_track_tile_position is not None):
+
+            # A bit of math to calculate all the tiles along the way between click location (=previous_track_tile_position) and current (dragged) mouse position.
+            # In most cases, there will be only 2 or 3 tiles, but in case the CPU is too loaded and our app refreshes with delay, there might be more tiles.
+            # Basically we have to intersect a line (y=a+b*x) with the grid of units delimiting the tiles
+            # https://photos.app.goo.gl/A5xbRTV7tp6FCyeH8
+            total_delta_x = end_tile_x - start_tile_x
+            total_delta_y = end_tile_y - start_tile_y
+            d_numerator = min(total_delta_x, total_delta_y)  # numerator increment
+            d_offset_numerator = max(total_delta_x, total_delta_y) # numerator offset (and bigger) increment
+            numerator = 0
             
-            # Only create new track if we've moved to a different tile
-            if (current_tile != self.previous_track_tile_position 
-                and self.previous_track_tile_position is not None
-                # don't overwrite something else on the map
-                and self.map_elements[current_tile_x][current_tile_y] is None):
+            while numerator <= total_delta_x * total_delta_y:
+                i = 0
+                while i * d_numerator < d_offset_numerator:
 
-                # Determine track orientation based on movement
-                previous_tile_x, previous_tile_y = self.previous_track_tile_position
-                
-                # Determine track endpoints
-                if current_tile_x > previous_tile_x:
-                    current_ends = ('L', 'R') # end2 is just a default
-                    self.current_track_chain[-1].end2 = 'R' # previous' end2 might be changed by the direction of the new segment, so update it
-                elif current_tile_x < previous_tile_x:
-                    current_ends = ('R', 'L')
-                    self.current_track_chain[-1].end2 = 'L'
-                elif current_tile_y > previous_tile_y:
-                    current_ends = ('U', 'D')
-                    self.current_track_chain[-1].end2 = 'D'
-                else:
-                    current_ends = ('D', 'U')
-                    self.current_track_chain[-1].end2 = 'U'
-                
-                map_current_x = current_tile_x * ELEMENT_SIZE + ELEMENT_SIZE//2
-                map_current_y = current_tile_y * ELEMENT_SIZE + ELEMENT_SIZE//2
-                current_track_segment = Track_segment(map_current_x, map_current_y, current_ends[0], current_ends[1], previous_segment=self.current_track_chain[-1])
+                    # At this point in the loop we yield a element: 
+                    # We define a functino because we will also need to yield a second time a bit lower, but for a different numerator value
+                    def yield_element (numerator:int):
+                        current_tile_x = numerator//total_delta_y  # we divide by y for x, and reverse
+                        current_tile_y = numerator//total_delta_x
+                        map_current_x = current_tile_x * ELEMENT_SIZE + ELEMENT_SIZE//2
+                        map_current_y = current_tile_y * ELEMENT_SIZE + ELEMENT_SIZE//2
+                        current_endings = Utils.get_endings(current_tile_x, current_tile_y, *self.previous_track_tile_position)
+                        current_track_segment = Track_segment(map_current_x, map_current_y, *current_endings, previous_segment=self.current_track_chain[-1])
+                        # also forward link the previous to this one:
+                        self.current_track_chain[-1].end2 = current_endings[1]  # previous' end2 might be changed by the direction of the new segment, so update it (=opposite of the first ending (end1) of current track)
+                        self.current_track_chain[-1].next_segment = current_track_segment
+                        # Add to map and track chain
+                        self.map_elements[current_tile_x][current_tile_y] = current_track_segment
+                        self.current_track_chain.append(current_track_segment)
+                        #prepare for next iteration:
+                        self.previous_track_tile_position = (current_tile_x, current_tile_y)
 
-                # also forward link the previous to this one:
-                self.current_track_chain[-1].next_segment = current_track_segment
+                    yield yield_element(numerator)
+
+                    i+=1
+                    numerator += d_numerator
                 
-                # Add to map and track chain
-                self.map_elements[current_tile_x][current_tile_y] = current_track_segment
-                self.current_track_chain.append(current_track_segment)
-                #prepare for next iteration:
-                self.previous_track_tile_position = current_tile
+                numerator += d_offset_numerator
+                yield_element(numerator)
+                    
 
     def __getstate__(self):
         """Return state values to be pickled."""
