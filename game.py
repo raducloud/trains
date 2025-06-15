@@ -73,6 +73,9 @@ class Game:
                     for other_button in self.palette_buttons:
                         if other_button!=button:
                             other_button.is_selected = False
+                    if button == self.eraser_button and button.alt_pressed:
+                        self.map = Map() # start over
+
                     return True
 
             if self.play_button.handle_event(event):

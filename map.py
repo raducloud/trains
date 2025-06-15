@@ -215,6 +215,72 @@ class Map:
                 # prepare for mouse dragging, in case it will happen:
                 self.previous_track_tile_position = current_tile                            
     
+    def add_track_drag(self):
+        # This is for placing tracks by DRAGGING the mouse. Unlike placing by simple click, here it's more simple for already knowing the previous tile to connect to, 
+        #   but also more complicated because we have to ASSURE connectedness EVEN if:
+        #          - the user draggs accros diagonaly (which is not supported in our neighbor logic)
+        #          - or if the user drags so fast that the previous drawn segment is not adjacent to current tile.
+
+        x_mouse, y_mouse = pygame.mouse.get_pos()
+        end_tile_x = abs(x_mouse-1)//ELEMENT_SIZE # abs and -1 are to handle clicks on extreme edges
+        end_tile_y = abs(y_mouse-1)//ELEMENT_SIZE 
+        end_tile = (end_tile_x, end_tile_y)
+         # Normally the start should be at the first tile the mouse hovered over AFTER the previous_track_tile_position (which was handled by add_track_by_clock), 
+         # but for finding out that tile we would need extra maths so, for simplicity, we consider the dragged line as including the previous_track_tile_position, 
+         # then do our calculations, then when laying out the track we skip that first one
+        start_tile_x, start_tile_y = self.previous_track_tile_position
+        is_first_tile_in_line = True
+        
+        if (x_mouse <= MAP_WIDTH*ELEMENT_SIZE and y_mouse <= MAP_HEIGHT*ELEMENT_SIZE
+            and end_tile != self.previous_track_tile_position
+            and self.previous_track_tile_position is not None):
+
+            # A bit of math to calculate all the tiles along the way between click location (=previous_track_tile_position) and current (dragged) mouse position.
+            # In most cases, there will be 1 tile only, sometimes 2 or 3 tiles, but in case the CPU is too loaded and our app refreshes with delay, there might be more.
+            # The calculation is to cover those seldom cases.
+            # Basically we have to intersect a line (y=a+b*x) with the grid of units delimiting the tiles
+
+            # We simulate the linear function that passes through our points. We use a bit custom maths instead of the classic y = slope * x + intercept, because of our tile-Manhattan-like geometry https://en.wikipedia.org/wiki/Taxicab_geometry, so which does not support real diagonals.
+            # We will loop through all x positions in the dragged range and for each x we'll get the range of cells to fill with tracks on the y axis.
+            #     For finding this y range, we add increments to start_tile_y. An increment is the size of the entire y delta divided into how many x tiles we have, so that each x receives an equal segment on the y axis.
+
+            incremenet_tiles_y = math.ceil(  (abs(end_tile_y - start_tile_y))  
+                                           / (abs(end_tile_x - start_tile_x) + 1) ) # we add a unit because we work with inclusive start-end for x. For y, the "inclusiveness" will be handled below.
+            print(f"1 incremenet_tiles_y = {incremenet_tiles_y}")
+            if end_tile_y - start_tile_y != 0: incremenet_tiles_y *= Utils.sign(end_tile_y - start_tile_y)  # multipy by sign() to set direction - ascending or descending
+            print(f"2 incremenet_tiles_y = {incremenet_tiles_y}")
+
+            for current_tile_x in Utils.smart_range(start_tile_x, end_tile_x):
+                print(f"x = {current_tile_x}")
+                start_segment_y = start_tile_y + ( incremenet_tiles_y * abs(current_tile_x - start_tile_x) )
+                end_segment_y   = start_tile_y + ( incremenet_tiles_y * (abs(current_tile_x - start_tile_x) + 1) )
+                # In cases of (end_tile_y - start_tile_y) = odd number, this y_to will overshoot by a unit because of the math.ceil() and the +1 we use. 
+                # This is fine for middle segments, as a workaround (literally around!) for not having diagonal layout of tracks (we have https://en.wikipedia.org/wiki/Taxicab_geometry), 
+                #     but for the last segment of course we must not overshoot, as we need to stop exactly where the user stops the mouse/finger. 
+                # So avoid overshoot in the last segment by:
+                if current_tile_x == end_tile_x: end_segment_y = end_tile_y
+
+                print(f"1 y_from = {start_segment_y}, y_to = {end_segment_y}")
+
+                for current_tile_y in Utils.smart_range(start_segment_y, end_segment_y):  # do the actual map placement of track for that y segment:
+
+                    if not (is_first_tile_in_line): # skip the first for the above mentioned reason (first was already drawn by add_track_by_click)
+                    
+                        map_current_x = current_tile_x * ELEMENT_SIZE + ELEMENT_SIZE//2
+                        map_current_y = current_tile_y * ELEMENT_SIZE + ELEMENT_SIZE//2
+                        current_endings = Utils.get_endings_by_prev_tile(*self.previous_track_tile_position, current_tile_x, current_tile_y)
+                        current_track_segment = Track_segment(map_current_x, map_current_y, *current_endings, previous_segment=self.current_track_chain[-1])
+                        # also forward link the previous one to current one:
+                        self.current_track_chain[-1].end2 = Utils.get_opposite_end(current_endings[0])
+                        self.current_track_chain[-1].next_segment = current_track_segment
+                        # Add to map and to track chain list:
+                        self.map_elements[current_tile_x][current_tile_y] = current_track_segment
+                        self.current_track_chain.append(current_track_segment)
+                        #prepare for next iteration:
+                        self.previous_track_tile_position = (current_tile_x, current_tile_y)
+                    
+                    is_first_tile_in_line = False
+
     def add_switch(self):
         new_switch = Switch(self.map_x, self.map_y)
         
@@ -245,63 +311,6 @@ class Map:
         
         self.assign_free_end_defaults(new_switch)
         self.map_elements[self.current_tile_x][self.current_tile_y] = new_switch
-
-
-    def add_track_drag(self):
-        # This is for placing tracks by DRAGGING the mouse. Unlike placing by simple click, here it's more simple that we already know the previous segment to connect to, 
-        #   but also more complicated because we have to ASURE connectedness EVEN if the user draggs accros diagonaly (which is not supported by place-by-click)
-        #     or if the user drags so fast that the previous drawn segment is not adjacent to current tile.
-
-        x_mouse, y_mouse = pygame.mouse.get_pos()
-        end_tile_x = (x_mouse-1)//ELEMENT_SIZE
-        end_tile_y = (y_mouse-1)//ELEMENT_SIZE 
-        end_tile = (end_tile_x, end_tile_y)
-        start_tile_x, start_tile_y = self.previous_track_tile_position
-        
-        if (x_mouse <= MAP_WIDTH*ELEMENT_SIZE and y_mouse <= MAP_HEIGHT*ELEMENT_SIZE
-                    and end_tile != self.previous_track_tile_position
-                    and self.previous_track_tile_position is not None):
-
-            # A bit of math to calculate all the tiles along the way between click location (=previous_track_tile_position) and current (dragged) mouse position.
-            # In most cases, there will be only 2 or 3 tiles, but in case the CPU is too loaded and our app refreshes with delay, there might be more tiles.
-            # Basically we have to intersect a line (y=a+b*x) with the grid of units delimiting the tiles
-            # https://photos.app.goo.gl/A5xbRTV7tp6FCyeH8
-            total_delta_x = end_tile_x - start_tile_x
-            total_delta_y = end_tile_y - start_tile_y
-            d_numerator = min(total_delta_x, total_delta_y)  # numerator increment
-            d_offset_numerator = max(total_delta_x, total_delta_y) # numerator offset (and bigger) increment
-            numerator = 0
-            
-            while numerator <= total_delta_x * total_delta_y:
-                i = 0
-                while i * d_numerator < d_offset_numerator:
-
-                    # At this point in the loop we yield a element: 
-                    # We define a functino because we will also need to yield a second time a bit lower, but for a different numerator value
-                    def yield_element (numerator:int):
-                        current_tile_x = numerator//total_delta_y  # we divide by y for x, and reverse
-                        current_tile_y = numerator//total_delta_x
-                        map_current_x = current_tile_x * ELEMENT_SIZE + ELEMENT_SIZE//2
-                        map_current_y = current_tile_y * ELEMENT_SIZE + ELEMENT_SIZE//2
-                        current_endings = Utils.get_endings(current_tile_x, current_tile_y, *self.previous_track_tile_position)
-                        current_track_segment = Track_segment(map_current_x, map_current_y, *current_endings, previous_segment=self.current_track_chain[-1])
-                        # also forward link the previous to this one:
-                        self.current_track_chain[-1].end2 = current_endings[1]  # previous' end2 might be changed by the direction of the new segment, so update it (=opposite of the first ending (end1) of current track)
-                        self.current_track_chain[-1].next_segment = current_track_segment
-                        # Add to map and track chain
-                        self.map_elements[current_tile_x][current_tile_y] = current_track_segment
-                        self.current_track_chain.append(current_track_segment)
-                        #prepare for next iteration:
-                        self.previous_track_tile_position = (current_tile_x, current_tile_y)
-
-                    yield yield_element(numerator)
-
-                    i+=1
-                    numerator += d_numerator
-                
-                numerator += d_offset_numerator
-                yield_element(numerator)
-                    
 
     def __getstate__(self):
         """Return state values to be pickled."""

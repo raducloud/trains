@@ -48,7 +48,7 @@ class Map_element:
         end_coordinates_map = {  # coordinates of points where the element can connect - left, right, up or down
             'L': (self.x - self.size//2, self.y),
             'R': (self.x + self.size//2, self.y),
-            'U': (self.x, self.y - self.size//2),
+            'U': (self.x, self.y - self.size//2), # Note that y axis increases DOWNWARDS in Pygame.
             'D': (self.x, self.y + self.size//2),
             None: (None, None)
         }
@@ -82,8 +82,9 @@ class Map_element:
         self.text_rect = self.text.get_rect(center=(self.x, self.y-ELEMENT_SIZE//3))
 
     def draw(self, screen):
-        # Write move versors for debugging
+        # Write movement versors for debugging:
         screen.blit(self.text, self.text_rect)
+        # The rest of drawing will behandled in more specific (derived) classes
 
     def __getstate__(self):
         state = self.__dict__.copy()

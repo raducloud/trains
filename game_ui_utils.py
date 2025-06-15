@@ -10,6 +10,7 @@ class Button:
         self.is_selected = False
         self.is_enabled = True
         self.font = pygame.font.Font(None, SMALL_TEXT_SIZE)
+        self.alt_pressed = False  # True if Alt was pressed during last click
 
     def draw(self, surface):
         color = BUTTON_SELECTED_COLOR if self.is_selected else BUTTON_HOVER_COLOR if self.is_hovered else BUTTON_COLOR
@@ -24,6 +25,13 @@ class Button:
             if event.type == pygame.MOUSEMOTION:
                 self.is_hovered = self.rect.collidepoint(event.pos)
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                # Check for Alt key
+                alt_down = False
+                if hasattr(event, 'mod'):
+                    alt_down = bool(event.mod & pygame.KMOD_ALT)
+                else:
+                    alt_down = bool(pygame.key.get_mods() & pygame.KMOD_ALT)
+                self.alt_pressed = alt_down
                 return self.rect.collidepoint(event.pos) # True only if the click was on this game button
 
 class ToggleButton(Button):
