@@ -40,10 +40,11 @@ class Game:
 
         # Other tool buttons:
         toolbar_row2_y = toolbar_y + BUTTON_MARGIN * 2 + BUTTON_HEIGHT
-        self.play_button = Button(WINDOW_WIDTH - BUTTON_MARGIN - BUTTON_WIDTH, toolbar_row2_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Play")
+        self.new_button  = Button(WINDOW_WIDTH - (BUTTON_MARGIN + BUTTON_WIDTH) * 4, toolbar_row2_y, BUTTON_WIDTH, BUTTON_HEIGHT, "New")
         self.save_button = Button(WINDOW_WIDTH - (BUTTON_MARGIN + BUTTON_WIDTH) * 3, toolbar_row2_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Save")
         self.load_button = Button(WINDOW_WIDTH - (BUTTON_MARGIN + BUTTON_WIDTH) * 2, toolbar_row2_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Load")
-        self.control_buttons = [self.play_button, self.save_button, self.load_button]
+        self.play_button = Button(WINDOW_WIDTH - BUTTON_MARGIN - BUTTON_WIDTH, toolbar_row2_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Play")
+        self.control_buttons = [self.play_button, self.new_button, self.save_button, self.load_button]
 
         self.popup_active = False
         self.popup_message = None
@@ -91,6 +92,10 @@ class Game:
 
             if self.load_button.handle_event(event):
                 self.load_map("map.pkl")
+                return True
+
+            if self.new_button.handle_event(event):
+                self.map = Map()
                 return True
 
             # handle clicks on map area:

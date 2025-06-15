@@ -36,7 +36,11 @@ class Button:
 
 class ToggleButton(Button):
     def handle_event(self, event): # returning True = button pressed
-        if self.is_enabled and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.rect.collidepoint(event.pos):
+        # Call the parent's handle_event first to update alt_pressed and is_hovered
+        button_was_pressed = super().handle_event(event)
+
+        if button_was_pressed and self.is_enabled and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.rect.collidepoint(event.pos):
             self.is_selected = not self.is_selected
-            return True
-        return super().handle_event(event)
+            return True # Signify that the toggle button was activated
+
+        return button_was_pressed # Return whether the button was pressed (including if only hovered or alt-clicked without toggling)
